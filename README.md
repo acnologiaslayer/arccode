@@ -156,6 +156,15 @@ provider errors. Only the LLM HTTP call is substituted; everything else is real.
 CI (`.github/workflows/ci.yml`) additionally verifies that a bare `pip install .`
 bundles the provider SDKs and that the CLI runs, across Python 3.10-3.12.
 
+## Scope vs jcode / Claude Code
+
+arccode implements the core harness architecture those tools share, not their
+full surface. **Present:** multi-provider routing, file-based agents + skills,
+spawn/orchestration, the tool suite above, an MCP stdio client, hooks, and
+slash commands. **Not yet:** response streaming, persistent resumable sessions,
+a browser tool, sandboxed execution, tiered permission policies, background-task
+supervision, and an LLM-based (vs heuristic) router. Contributions welcome.
+
 ## License
 
 MIT
