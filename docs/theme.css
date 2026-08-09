@@ -1,0 +1,43 @@
+/*
+ * arccode brand theme tokens - Red & Black.
+ * Derived from the "Node Mesh" emblem, recolored to a crimson-on-black identity.
+ * Import in the site, or copy the values into your app's theme.
+ */
+:root {
+  /* Brand gradient stops */
+  --arc-red-100: #FF5A5A;   /* light */
+  --arc-red-500: #E5121B;   /* core crimson */
+  --arc-red-900: #7A0A0A;   /* deep */
+  --arc-red-200: #FF8A8A;   /* accent node */
+
+  /* Semantic */
+  --arc-accent: var(--arc-red-500);
+  --arc-accent-soft: var(--arc-red-100);
+  --arc-accent-alt: var(--arc-red-900);
+  --arc-gradient: linear-gradient(135deg, var(--arc-red-100), var(--arc-red-500) 55%, var(--arc-red-900));
+
+  /* Black surfaces (default) */
+  --arc-bg: #060606;
+  --arc-bg-2: #0E0C0C;
+  --arc-panel: #141010;
+  --arc-border: #2A1E1E;
+  --arc-text: #F5EDED;
+  --arc-muted: #B99C9C;
+
+  /* Model-tier accents (red-tinted scale) */
+  --arc-tier-cheap: #FF9B8A;    /* small / cheap  (light) */
+  --arc-tier-mid: #F0454B;      /* workhorse      (core)  */
+  --arc-tier-frontier: #B00711; /* frontier       (deep)  */
+
+  --arc-radius: 14px;
+}
+
+/* Light theme override (still red accent, warm-paper black text) */
+[data-theme="light"] {
+  --arc-bg: #FDF8F8;
+  --arc-bg-2: #F5EAEA;
+  --arc-panel: #FFFFFF;
+  --arc-border: #EAD7D7;
+  --arc-text: #1A0E0E;
+  --arc-muted: #6E5555;
+}

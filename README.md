@@ -1,5 +1,7 @@
 # arccode
 
+<img src="docs/logo-wordmark.svg" alt="arccode" height="44" />
+
 [![CI](https://github.com/acnologiaslayer/arccode/actions/workflows/ci.yml/badge.svg)](https://github.com/acnologiaslayer/arccode/actions/workflows/ci.yml)
 [![Release](https://github.com/acnologiaslayer/arccode/actions/workflows/release.yml/badge.svg)](https://github.com/acnologiaslayer/arccode/actions/workflows/release.yml)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
@@ -245,6 +247,23 @@ slash commands, and persistent resumable sessions. **Not yet:** response
 streaming, a browser tool, sandboxed execution, tiered permission policies,
 background-task supervision, and an LLM-based (vs heuristic) router.
 Contributions welcome.
+
+## Branding
+
+The arccode mark is a **routing hub** that fans out along an **arc** to three
+model-tier nodes, the visual of "route one task to the right model", rendered in
+the node-mesh style of the author's emblem. Theme is **red on black**.
+
+| Asset | File |
+|---|---|
+| Emblem | [`docs/logo.svg`](docs/logo.svg) |
+| Wordmark | [`docs/logo-wordmark.svg`](docs/logo-wordmark.svg) |
+| Monochrome | [`docs/logo-mono.svg`](docs/logo-mono.svg) |
+| Favicon | [`docs/favicon.svg`](docs/favicon.svg) |
+| Theme tokens | [`docs/theme.css`](docs/theme.css) |
+
+Palette: `#FF5A5A` → `#E5121B` → `#7A0A0A` (accent node `#FF8A8A`) on
+black surfaces (`#060606` / `#141010`).
 
 ## License
 

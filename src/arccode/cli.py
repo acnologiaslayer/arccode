@@ -6,14 +6,36 @@ import sys
 import typer
 from rich.console import Console
 from rich.table import Table
+from rich.theme import Theme
 
 from . import __version__
 from .app import App
 from .config import MODELS
 from .router import route
 
+# arccode red & black brand theme for the CLI.
+ARC_THEME = Theme({
+    "arc.accent": "bold red",
+    "arc.accent2": "bright_red",
+    "arc.muted": "grey42",
+    "arc.ok": "bold red",
+    "arc.warn": "bright_yellow",
+    "arc.err": "bold bright_red",
+    "arc.tier.cheap": "bright_red",
+    "arc.tier.mid": "red",
+    "arc.tier.frontier": "bold bright_red",
+    # Rich built-ins remapped so stray defaults stay on-brand.
+    "repr.str": "red",
+    "table.header": "bold red",
+})
+
 app = typer.Typer(add_completion=False, help="arccode - multi-provider agent harness CLI")
-console = Console()
+console = Console(theme=ARC_THEME)
+
+
+def _table(title: str) -> Table:
+    return Table(title=title, border_style="red", header_style="bold red",
+                 title_style="bold bright_red")
 
 
 def _app(cwd: str, yes: bool, verbose: bool, no_mcp: bool) -> App:
@@ -70,7 +92,7 @@ def chat(
     console.print(f"[bold]arccode[/bold] chat :: agent={agent}. /exit to quit.")
     while True:
         try:
-            line = console.input("[bold cyan]you>[/bold cyan] ").strip()
+            line = console.input("[arc.accent]you>[/arc.accent] ").strip()
         except (EOFError, KeyboardInterrupt):
             break
         if line in ("/exit", "/quit"):
@@ -78,15 +100,15 @@ def chat(
         if not line:
             continue
         result = a.run(line, agent=agent, model=model)
-        console.print(f"[bold green]{agent}>[/bold green] {result}")
+        console.print(f"[arc.ok]{agent}>[/arc.ok] {result}")
 
 
 @app.command()
 def agents(cwd: str = typer.Option(".", "--cwd")):
     """List available agents."""
     a = App(cwd=cwd, enable_mcp=False)
-    table = Table(title="agents")
-    table.add_column("name", style="cyan")
+    table = _table("agents")
+    table.add_column("name", style="arc.accent")
     table.add_column("model")
     table.add_column("description")
     for name, spec in sorted(a.orchestrator.registry.items()):
@@ -104,7 +126,7 @@ def skills(cwd: str = typer.Option(".", "--cwd")):
 @app.command()
 def models():
     """List the model catalog with pricing."""
-    table = Table(title="model catalog")
+    table = _table("model catalog")
     for col in ("key", "id", "tier", "$in/1M", "$out/1M", "strengths"):
         table.add_column(col)
     for key, m in MODELS.items():
@@ -117,8 +139,10 @@ def models():
 def whichmodel(task: str):
     """Show which model the router would pick for a task, and why."""
     d = route(task)
-    console.print(f"[bold]{d.model.key}[/bold] ({d.model.id})")
-    console.print(f"[dim]{d.reason}[/dim]")
+    tier_style = {"frontier": "arc.tier.frontier", "mid": "arc.tier.mid",
+                  "small": "arc.tier.cheap", "local": "arc.tier.cheap"}.get(d.model.tier, "arc.accent")
+    console.print(f"[{tier_style}]{d.model.key}[/{tier_style}] ({d.model.id})")
+    console.print(f"[arc.muted]{d.reason}[/arc.muted]")
 
 
 @app.command()
@@ -155,7 +179,7 @@ def sessions():
     if not rows:
         console.print("(no sessions)")
         return
-    table = Table(title="sessions")
+    table = _table("sessions")
     for col in ("id", "agent", "turns", "cost"):
         table.add_column(col)
     for s in rows:
@@ -166,7 +190,14 @@ def sessions():
 @app.command()
 def version():
     """Print version."""
-    console.print(f"arccode {__version__}")
+    banner = r"""
+  __ _ _ __ ___ ___ ___   __| | ___
+ / _` | '__/ __/ __/ _ \ / _` |/ _ \
+| (_| | | | (_| (_| (_) | (_| |  __/
+ \__,_|_|  \___\___\___/ \__,_|\___|"""
+    console.print(f"[arc.accent]{banner}[/arc.accent]")
+    console.print(f"  [arc.accent2]arccode[/arc.accent2] [arc.muted]v{__version__} - "
+                  f"multi-provider agent harness[/arc.muted]\n")
 
 
 auth_app = typer.Typer(help="Authenticate with providers via OAuth.")
@@ -184,10 +215,10 @@ def auth_login(
     try:
         tok = auth.login(provider, device=device)
     except Exception as e:  # noqa: BLE001
-        console.print(f"[red]login failed:[/red] {e}")
+        console.print(f"[arc.err]login failed:[/arc.err] {e}")
         raise typer.Exit(1)
     scopes = tok.get("scope", "")
-    console.print(f"[green]logged in[/green] to {provider}"
+    console.print(f"[arc.ok]logged in[/arc.ok] to {provider}"
                   + (f" (scopes: {scopes})" if scopes else ""))
 
 
@@ -207,7 +238,7 @@ def auth_status():
     if not rows:
         console.print("(not logged in to any provider via OAuth)")
         return
-    table = Table(title="oauth status")
+    table = _table("oauth status")
     for col in ("provider", "access", "refresh", "expired"):
         table.add_column(col)
     for r in rows:

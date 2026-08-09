@@ -1,0 +1,29 @@
+<svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="arccode">
+  <defs>
+    <linearGradient id="arc-mesh" x1="8" y1="10" x2="40" y2="38" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FF5A5A"/>
+      <stop offset="0.55" stop-color="#E5121B"/>
+      <stop offset="1" stop-color="#7A0A0A"/>
+    </linearGradient>
+  </defs>
+
+  <!-- rounded container -->
+  <rect x="1.25" y="1.25" width="45.5" height="45.5" rx="13"
+        stroke="url(#arc-mesh)" stroke-opacity="0.3" stroke-width="1.5"/>
+
+  <!-- routing arc: the set of model-tier destinations, centred on the hub -->
+  <path d="M30.6 12.1 A20 20 0 0 1 30.6 35.9"
+        stroke="url(#arc-mesh)" stroke-width="2" stroke-linecap="round" stroke-opacity="0.55"/>
+
+  <!-- routing spokes: hub fans out to each tier -->
+  <path d="M13 24 L30.6 12.1 M13 24 L33 24 M13 24 L30.6 35.9"
+        stroke="url(#arc-mesh)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.9"/>
+
+  <!-- model-tier nodes on the arc -->
+  <circle cx="30.6" cy="12.1" r="3.2" fill="url(#arc-mesh)"/>
+  <circle cx="33"   cy="24"   r="3.6" fill="#FF8A8A"/>
+  <circle cx="30.6" cy="35.9" r="3.2" fill="url(#arc-mesh)"/>
+
+  <!-- routing hub -->
+  <circle cx="13" cy="24" r="4" fill="url(#arc-mesh)"/>
+</svg>
