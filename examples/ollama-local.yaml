@@ -1,0 +1,11 @@
+models:
+  # Small local tool-capable model for a real live acceptance run through the CLI.
+  qwen-small:
+    id: "ollama:qwen2.5:0.5b"
+    provider: ollama
+    tier: small
+    in_cost: 0
+    out_cost: 0
+    ctx: 32000
+    strengths: [code, tools, cheap, local]
+    max_out: 512
