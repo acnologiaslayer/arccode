@@ -42,9 +42,8 @@ flowchart TB
 ## Install
 
 ```bash
-pip install -e '.[all]'          # from source, with anthropic + openai SDKs
-# or a minimal core:
-pip install -e .
+pip install -e .                 # provider SDKs (anthropic, openai) included
+pip install -e '.[dev]'          # + pytest/ruff for development
 ```
 
 Set the keys for whatever providers you use:
@@ -141,6 +140,21 @@ src/arccode/
   app.py             assembly
   cli.py             typer CLI
 ```
+
+## Testing
+
+```bash
+pip install '.[dev]' && pytest -q
+```
+
+The suite includes real-path integration tests: a scripted fake provider drives
+the **actual** agent loop, tool execution (files written/read on disk), the
+orchestrator `spawn` path (a sub-agent really runs and writes a file), hook
+blocking (a `PreToolUse` hook prevents a side effect), and graceful handling of
+provider errors. Only the LLM HTTP call is substituted; everything else is real.
+
+CI (`.github/workflows/ci.yml`) additionally verifies that a bare `pip install .`
+bundles the provider SDKs and that the CLI runs, across Python 3.10-3.12.
 
 ## License
 

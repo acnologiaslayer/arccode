@@ -1,0 +1,10 @@
+models:
+  kimi:
+    id: "ollama:kimi-k2.5:cloud"
+    provider: ollama
+    tier: mid
+    in_cost: 0
+    out_cost: 0
+    ctx: 128000
+    strengths: [code, tools, reasoning, cheap]
+    max_out: 2048

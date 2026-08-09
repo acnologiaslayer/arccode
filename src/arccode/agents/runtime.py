@@ -41,10 +41,16 @@ class Agent:
         self.messages.append(Message("user", task))
         final = ""
         for step in range(max_steps):
-            comp = provider.complete(
-                model=model_id, system=self._system(),
-                messages=self.messages, tools=schemas,
-                effort=self.spec.effort, max_out=decision.model.max_out)
+            try:
+                comp = provider.complete(
+                    model=model_id, system=self._system(),
+                    messages=self.messages, tools=schemas,
+                    effort=self.spec.effort, max_out=decision.model.max_out)
+            except Exception as e:  # noqa: BLE001
+                msg = str(e).splitlines()[0] if str(e) else e.__class__.__name__
+                if self.verbose:
+                    console.print(f"[red]provider error: {msg}[/red]")
+                return f"ERROR: provider call failed ({decision.model.id}): {msg}"
 
             self._account(model_id, comp.usage)
 
