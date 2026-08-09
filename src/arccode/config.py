@@ -46,6 +46,33 @@ DEFAULT_MODELS: dict[str, ModelSpec] = {
 # How much each factor matters when scoring a model for a task.
 ROUTE_WEIGHTS = {"capability": 0.45, "cost": 0.30, "latency": 0.25}
 
+# OAuth provider endpoints. client_id is intentionally blank by default: OAuth
+# clients are issued by each provider, so users set their own via
+# ~/.arccode/oauth.json or ARCCODE_<PROVIDER>_CLIENT_ID. These are the standard
+# public endpoints; override token/auth URLs there too if a provider differs.
+OAUTH_PROVIDERS: dict[str, dict] = {
+    "openai": {
+        "auth_url": "https://auth.openai.com/authorize",
+        "token_url": "https://auth.openai.com/oauth/token",
+        "client_id": "",
+        "scopes": ["openid", "profile", "email", "offline_access"],
+    },
+    "anthropic": {
+        "auth_url": "https://claude.ai/oauth/authorize",
+        "token_url": "https://claude.ai/oauth/token",
+        "client_id": "",
+        "scopes": ["org:create_api_key", "user:profile", "user:inference"],
+    },
+    # Generic examples for OIDC providers that support device flow:
+    "github": {
+        "auth_url": "https://github.com/login/oauth/authorize",
+        "token_url": "https://github.com/login/oauth/access_token",
+        "device_url": "https://github.com/login/device/code",
+        "client_id": "",
+        "scopes": ["read:user"],
+    },
+}
+
 
 def load_models() -> dict[str, ModelSpec]:
     """Return the catalog, merged with an optional YAML override."""

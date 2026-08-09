@@ -169,5 +169,53 @@ def version():
     console.print(f"arccode {__version__}")
 
 
+auth_app = typer.Typer(help="Authenticate with providers via OAuth.")
+app.add_typer(auth_app, name="auth")
+
+
+@auth_app.command("login")
+def auth_login(
+    provider: str = typer.Argument(..., help="Provider name (e.g. openai, anthropic, github)."),
+    device: bool = typer.Option(False, "--device", help="Use the device-code flow (headless)."),
+    port: int = typer.Option(8765, "--port", help="Local callback port for the code flow."),
+):
+    """Log in to a provider with OAuth and store the token."""
+    from . import auth
+    try:
+        tok = auth.login(provider, device=device)
+    except Exception as e:  # noqa: BLE001
+        console.print(f"[red]login failed:[/red] {e}")
+        raise typer.Exit(1)
+    scopes = tok.get("scope", "")
+    console.print(f"[green]logged in[/green] to {provider}"
+                  + (f" (scopes: {scopes})" if scopes else ""))
+
+
+@auth_app.command("logout")
+def auth_logout(provider: str = typer.Argument(...)):
+    """Remove stored credentials for a provider."""
+    from . import auth
+    ok = auth.logout(provider)
+    console.print("logged out" if ok else f"no stored credentials for {provider}")
+
+
+@auth_app.command("status")
+def auth_status():
+    """Show OAuth login status per provider."""
+    from . import auth
+    rows = auth.status()
+    if not rows:
+        console.print("(not logged in to any provider via OAuth)")
+        return
+    table = Table(title="oauth status")
+    for col in ("provider", "access", "refresh", "expired"):
+        table.add_column(col)
+    for r in rows:
+        table.add_row(r["provider"], "yes" if r["has_access"] else "no",
+                      "yes" if r["has_refresh"] else "no",
+                      "yes" if r["expired"] else "no")
+    console.print(table)
+
+
 if __name__ == "__main__":
     app()

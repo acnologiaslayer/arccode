@@ -9,7 +9,7 @@ from .base import Completion, Message, ToolCall
 
 class AnthropicProvider:
     def __init__(self, api_key: str | None = None):
-        self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
+        self.api_key = api_key
         self._client = None
 
     def _client_or_raise(self):
@@ -20,9 +20,18 @@ class AnthropicProvider:
                 raise RuntimeError(
                     "anthropic SDK not installed. Run: pip install 'arccode[anthropic]'"
                 ) from e
-            if not self.api_key:
-                raise RuntimeError("ANTHROPIC_API_KEY not set")
-            self._client = anthropic.Anthropic(api_key=self.api_key)
+            from ..credentials import resolve
+            secret, kind = (self.api_key, "api_key") if self.api_key else resolve("anthropic")
+            if not secret:
+                raise RuntimeError(
+                    "No Anthropic credentials. Set ANTHROPIC_API_KEY or run 'arccode auth login anthropic'.")
+            if kind == "oauth":
+                # OAuth bearer token instead of x-api-key.
+                self._client = anthropic.Anthropic(
+                    auth_token=secret,
+                    default_headers={"anthropic-beta": "oauth-2025-04-20"})
+            else:
+                self._client = anthropic.Anthropic(api_key=secret)
         return self._client
 
     def complete(self, *, model, system, messages, tools, effort="medium", max_out=4096):

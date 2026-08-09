@@ -176,7 +176,7 @@
       <a class="btn btn-ghost" href="https://github.com/acnologiaslayer/arccode">View source</a>
     </div>
     <div class="install">
-      <span><span class="prompt">$</span> <span class="mono" id="install-cmd">pipx install git+https://github.com/acnologiaslayer/arccode</span></span>
+      <span><span class="prompt">$</span> <span class="mono" id="install-cmd">curl -fsSL https://acnologiaslayer.github.io/arccode/install.sh | sh</span></span>
       <button onclick="copyInstall()">Copy</button>
     </div>
   </div>
@@ -225,14 +225,15 @@
     <div class="eyebrow">Quickstart</div>
     <h2>Running in two minutes</h2>
     <p class="section-sub">Install, set a key (or run fully local with Ollama), and go.</p>
-    <pre class="block"><span class="c"># install (isolated, recommended)</span>
+    <pre class="block"><span class="c"># one-line install (isolated venv or pipx, auto-detected)</span>
+curl -fsSL https://acnologiaslayer.github.io/arccode/install.sh | sh
+<span class="c"># or with pipx / pip directly</span>
 pipx <span class="k">install</span> git+https://github.com/acnologiaslayer/arccode
-<span class="c"># or into the current environment</span>
-pip <span class="k">install</span> git+https://github.com/acnologiaslayer/arccode
 
-<span class="c"># pick your providers</span>
+<span class="c"># authenticate: an API key...</span>
 <span class="p">export</span> ANTHROPIC_API_KEY=...
-<span class="p">export</span> OPENAI_API_KEY=...
+<span class="c"># ...or OAuth login (PKCE browser flow, like Claude Code / jcode)</span>
+arccode auth login openai
 <span class="c"># Ollama runs locally at :11434, no key needed</span>
 
 <span class="c"># run a task (model auto-selected by the router)</span>

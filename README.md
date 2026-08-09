@@ -31,6 +31,8 @@ flowchart TB
 
 - **Multi-provider**: Anthropic, OpenAI, Ollama (local), OpenRouter behind one
   normalized interface. Models are hot-swappable.
+- **Auth**: static API keys or **OAuth login** (PKCE + device flow) with
+  automatic token refresh, like Claude Code / jcode.
 - **Smart routing**: heuristic classifier scores each model by capability, cost,
   and latency for the task's intent and complexity. Explicit overrides win.
 - **Agents as files**: Markdown + YAML frontmatter, auto-discovered. Each agent
@@ -48,16 +50,23 @@ flowchart TB
 
 ## Install
 
-Recommended (isolated, global CLI):
+One-line install (auto-detects pipx, else an isolated venv):
+
+```bash
+curl -fsSL https://acnologiaslayer.github.io/arccode/install.sh | sh
+```
+
+Or with pipx / pip directly:
 
 ```bash
 pipx install git+https://github.com/acnologiaslayer/arccode
+pip install git+https://github.com/acnologiaslayer/arccode
 ```
 
-Or into the current environment:
+Uninstall:
 
 ```bash
-pip install git+https://github.com/acnologiaslayer/arccode
+curl -fsSL https://acnologiaslayer.github.io/arccode/uninstall.sh | sh
 ```
 
 From a clone (for development):
@@ -80,11 +89,42 @@ Once a release is tagged, the same command works from PyPI: `pipx install arccod
 
 Set the keys for whatever providers you use:
 
+## Authentication
+
+arccode accepts two credential types per provider, checked in this order:
+
+1. **API key** (env var, always wins): `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`,
+   `OPENROUTER_API_KEY`. Ollama runs locally at `:11434` with no key.
+2. **OAuth login** (subscription-style, like Claude Code / jcode):
+
 ```bash
-export ANTHROPIC_API_KEY=...
-export OPENAI_API_KEY=...
-# Ollama runs locally at http://localhost:11434, no key needed
+arccode auth login openai          # opens a browser, PKCE + local callback
+arccode auth login anthropic
+arccode auth login github --device # headless / SSH: device-code flow
+arccode auth status                # show which providers are logged in
+arccode auth logout openai
 ```
+
+Tokens are stored in `~/.arccode/credentials.json` (mode 0600) and are
+**refreshed automatically** when they expire. OAuth clients are issued by each
+provider, so set your `client_id` (and any endpoint overrides) in
+`~/.arccode/oauth.json`:
+
+```json
+{
+  "providers": {
+    "openai": {
+      "auth_url": "https://auth.openai.com/authorize",
+      "token_url": "https://auth.openai.com/oauth/token",
+      "client_id": "YOUR_CLIENT_ID",
+      "scopes": ["openid", "profile", "offline_access"]
+    }
+  }
+}
+```
+
+Supported flows: **Authorization Code + PKCE** (RFC 7636) with a loopback
+callback, and the **Device Authorization Grant** (RFC 8628) for headless use.
 
 ## Usage
 

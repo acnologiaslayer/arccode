@@ -25,9 +25,7 @@ class OpenAICompatProvider:
         default_base, key_env = _ROUTES.get(provider, (None, "OPENAI_API_KEY"))
         self.base_url = base_url or os.environ.get(
             f"{provider.upper()}_BASE_URL", default_base)
-        # ollama accepts any key; default to a placeholder so the SDK is happy
-        self.api_key = api_key or os.environ.get(key_env) or (
-            "ollama" if provider == "ollama" else None)
+        self._explicit_key = api_key
         self._client = None
 
     def _client_or_raise(self):
@@ -38,9 +36,23 @@ class OpenAICompatProvider:
                 raise RuntimeError(
                     "openai SDK not installed. Run: pip install 'arccode[openai]'"
                 ) from e
-            if not self.api_key:
-                raise RuntimeError(f"API key not set for provider {self.provider}")
-            self._client = openai.OpenAI(api_key=self.api_key, base_url=self.base_url)
+            from ..credentials import resolve
+            if self._explicit_key:
+                secret, kind = self._explicit_key, "api_key"
+            else:
+                secret, kind = resolve(self.provider)
+            if not secret and self.provider == "ollama":
+                secret, kind = "ollama", "api_key"  # local, key-less
+            if not secret:
+                raise RuntimeError(
+                    f"No credentials for {self.provider}. Set the API key or run "
+                    f"'arccode auth login {self.provider}'.")
+            if kind == "oauth":
+                self._client = openai.OpenAI(
+                    api_key="oauth", base_url=self.base_url,
+                    default_headers={"Authorization": f"Bearer {secret}"})
+            else:
+                self._client = openai.OpenAI(api_key=secret, base_url=self.base_url)
         return self._client
 
     def complete(self, *, model, system, messages, tools, effort="medium", max_out=4096):
