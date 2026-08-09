@@ -70,6 +70,14 @@ pip install -e '.[dev]'          # + pytest/ruff for development
 
 Once a release is tagged, the same command works from PyPI: `pipx install arccode`.
 
+> **Maintainer note - enabling PyPI publishing (one-time):** tagging `v*` runs
+> `.github/workflows/release.yml`, which builds the wheel/sdist, attaches them to
+> a GitHub Release, and attempts a PyPI upload via trusted publishing. The PyPI
+> step needs a one-time setup: create the `arccode` project on PyPI and add a
+> Trusted Publisher for `acnologiaslayer/arccode` with workflow `release.yml` and
+> environment `pypi` (https://docs.pypi.org/trusted-publishers/). Until then, the
+> build and GitHub Release still succeed and `pipx install git+...` works.
+
 Set the keys for whatever providers you use:
 
 ```bash
