@@ -1,15 +1,21 @@
 #!/bin/sh
 # arccode installer - curl -fsSL https://acnologiaslayer.github.io/arccode/install.sh | sh
 #
-# Installs the arccode CLI. Prefers pipx (isolated), falls back to pip --user.
-# Env overrides:
-#   ARCCODE_REF=<git ref>      install a specific branch/tag (default: master)
-#   ARCCODE_METHOD=pipx|pip    force an install method
+# Installs the arccode CLI. Prefers pipx (isolated), falls back to an isolated venv.
+# By default installs the latest release from PyPI. Env overrides:
+#   ARCCODE_SOURCE=pypi|git    install source (default: pypi)
+#   ARCCODE_REF=<git ref>      with ARCCODE_SOURCE=git, a branch/tag (default: master)
+#   ARCCODE_METHOD=pipx|venv|pip   force an install method
 set -eu
 
 REPO="acnologiaslayer/arccode"
+SOURCE="${ARCCODE_SOURCE:-pypi}"
 REF="${ARCCODE_REF:-master}"
-SPEC="git+https://github.com/${REPO}@${REF}"
+if [ "$SOURCE" = "git" ]; then
+  SPEC="git+https://github.com/${REPO}@${REF}"
+else
+  SPEC="arccode"
+fi
 
 # ---- pretty output ----
 if [ -t 1 ]; then

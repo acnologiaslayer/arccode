@@ -4,6 +4,7 @@
 
 [![CI](https://github.com/acnologiaslayer/arccode/actions/workflows/ci.yml/badge.svg)](https://github.com/acnologiaslayer/arccode/actions/workflows/ci.yml)
 [![Release](https://github.com/acnologiaslayer/arccode/actions/workflows/release.yml/badge.svg)](https://github.com/acnologiaslayer/arccode/actions/workflows/release.yml)
+[![PyPI](https://img.shields.io/pypi/v/arccode)](https://pypi.org/project/arccode/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
@@ -52,22 +53,30 @@ flowchart TB
 
 ## Install
 
-One-line install (auto-detects pipx, else an isolated venv):
+From PyPI (recommended):
+
+```bash
+pipx install arccode      # isolated global CLI
+pip install arccode       # into the current environment
+```
+
+Or one-line install (auto-detects pipx, else an isolated venv):
 
 ```bash
 curl -fsSL https://acnologiaslayer.github.io/arccode/install.sh | sh
 ```
 
-Or with pipx / pip directly:
+Bleeding edge, straight from the repo:
 
 ```bash
 pipx install git+https://github.com/acnologiaslayer/arccode
-pip install git+https://github.com/acnologiaslayer/arccode
 ```
 
 Uninstall:
 
 ```bash
+pipx uninstall arccode
+# or, if installed via the script:
 curl -fsSL https://acnologiaslayer.github.io/arccode/uninstall.sh | sh
 ```
 
@@ -79,15 +88,10 @@ pip install -e .                 # provider SDKs (anthropic, openai) included
 pip install -e '.[dev]'          # + pytest/ruff for development
 ```
 
-Once a release is tagged, the same command works from PyPI: `pipx install arccode`.
-
-> **Maintainer note - enabling PyPI publishing (one-time):** tagging `v*` runs
-> `.github/workflows/release.yml`, which builds the wheel/sdist, attaches them to
-> a GitHub Release, and attempts a PyPI upload via trusted publishing. The PyPI
-> step needs a one-time setup: create the `arccode` project on PyPI and add a
-> Trusted Publisher for `acnologiaslayer/arccode` with workflow `release.yml` and
-> environment `pypi` (https://docs.pypi.org/trusted-publishers/). Until then, the
-> build and GitHub Release still succeed and `pipx install git+...` works.
+> **Releasing:** tagging `v*` runs `.github/workflows/release.yml`, which builds
+> the wheel/sdist, publishes to PyPI via trusted publishing, and attaches the
+> artifacts to a GitHub Release. PyPI trusted publishing is configured for
+> `acnologiaslayer/arccode` (workflow `release.yml`, environment `pypi`).
 
 Set the keys for whatever providers you use:
 

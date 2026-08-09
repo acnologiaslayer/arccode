@@ -178,7 +178,7 @@
       <a class="btn btn-ghost" href="https://github.com/acnologiaslayer/arccode">View source</a>
     </div>
     <div class="install">
-      <span><span class="prompt">$</span> <span class="mono" id="install-cmd">curl -fsSL https://acnologiaslayer.github.io/arccode/install.sh | sh</span></span>
+      <span><span class="prompt">$</span> <span class="mono" id="install-cmd">pipx install arccode</span></span>
       <button onclick="copyInstall()">Copy</button>
     </div>
   </div>
@@ -227,9 +227,10 @@
     <div class="eyebrow">Quickstart</div>
     <h2>Running in two minutes</h2>
     <p class="section-sub">Install, set a key (or run fully local with Ollama), and go.</p>
-    <pre class="block"><span class="c"># one-line install (isolated venv or pipx, auto-detected)</span>
+    <pre class="block"><span class="c"># install from PyPI (isolated global CLI)</span>
+pipx <span class="k">install</span> arccode
+<span class="c"># or one-line installer, or straight from the repo</span>
 curl -fsSL https://acnologiaslayer.github.io/arccode/install.sh | sh
-<span class="c"># or with pipx / pip directly</span>
 pipx <span class="k">install</span> git+https://github.com/acnologiaslayer/arccode
 
 <span class="c"># authenticate: an API key...</span>
