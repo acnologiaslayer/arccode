@@ -245,3 +245,53 @@ def test_resolver_none_when_no_creds(monkeypatch):
     monkeypatch.setattr(credentials, "bearer_token", lambda p: None)
     secret, kind = credentials.resolve("anthropic")
     assert kind == "none" and secret is None
+
+
+# ---- provider Bearer injection (whole-result integration) -------------------
+
+def test_provider_uses_bearer_when_oauth(monkeypatch):
+    """The OpenAI-compat adapter must build its client with a Bearer header when
+    credentials resolve to OAuth (no API key). Captures the header without a
+    live call by stubbing the openai client constructor."""
+    from arccode.providers.openai_compat import OpenAICompatProvider
+    from arccode import credentials
+
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setattr(credentials, "bearer_token",
+                        lambda p: "tok-123" if p == "openai" else None)
+
+    captured = {}
+
+    class FakeOpenAI:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+    import openai
+    monkeypatch.setattr(openai, "OpenAI", FakeOpenAI)
+
+    prov = OpenAICompatProvider(provider="openai")
+    prov._client_or_raise()
+    assert captured.get("default_headers", {}).get("Authorization") == "Bearer tok-123"
+
+
+def test_anthropic_uses_auth_token_when_oauth(monkeypatch):
+    from arccode.providers.anthropic import AnthropicProvider
+    from arccode import credentials
+
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setattr(credentials, "bearer_token",
+                        lambda p: "atok" if p == "anthropic" else None)
+
+    captured = {}
+
+    class FakeAnthropic:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+    import anthropic
+    monkeypatch.setattr(anthropic, "Anthropic", FakeAnthropic)
+
+    prov = AnthropicProvider()
+    prov._client_or_raise()
+    assert captured.get("auth_token") == "atok"
+    assert "api_key" not in captured
