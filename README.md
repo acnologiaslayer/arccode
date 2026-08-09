@@ -10,6 +10,8 @@
 
 **Website: https://acnologiaslayer.github.io/arccode/** (also at http://arcma.dev/arccode/)
 
+📖 **[Usage Guide](USAGE.md)** — command-by-command walkthrough, workflows, and recipes.
+
 A multi-provider agent harness, as a CLI. arccode routes each task to the right
 model based on **complexity, cost, performance, and intent**, and can **spawn
 specialist agents, load/import skills, and build new agents and skills** at

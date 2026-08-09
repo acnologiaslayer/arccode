@@ -5,6 +5,7 @@ CLI (or any embedder) can use.
 """
 from __future__ import annotations
 
+import os
 import pathlib
 
 from .hooks import HookManager, SlashCommands
@@ -27,11 +28,13 @@ class App:
                  agents_dir: str | None = None, skills_dir: str | None = None,
                  enable_mcp: bool = True):
         pkg = _pkg_dir()
-        self.agents_dir = _resolve_dir(agents_dir, pkg / "agents" / "registry")
-        self.skills_dir = _resolve_dir(skills_dir, pkg / "skills" / "registry")
+        self.agents_dir = _resolve_dir(
+            agents_dir or os.environ.get("ARCCODE_AGENTS_DIR"), pkg / "agents" / "registry")
+        self.skills_dir = _resolve_dir(
+            skills_dir or os.environ.get("ARCCODE_SKILLS_DIR"), pkg / "skills" / "registry")
         self.verbose = verbose
 
-        home = pathlib.Path.home() / ".arccode"
+        home = pathlib.Path(os.environ.get("ARCCODE_HOME", pathlib.Path.home() / ".arccode"))
         home.mkdir(parents=True, exist_ok=True)
 
         self.skills = SkillRegistry(self.skills_dir)
