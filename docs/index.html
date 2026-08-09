@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>arccode - multi-provider agent harness CLI</title>
+<meta name="description" content="arccode routes each task to the right model by complexity, cost, performance, and intent. Spawn agents, load and build skills, all from one CLI." />
+<meta property="og:title" content="arccode" />
+<meta property="og:description" content="A multi-provider agent harness CLI: route by complexity, cost, performance, intent. Spawn agents, build skills." />
+<meta property="og:type" content="website" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #0a0b0f;
+    --bg2: #12141b;
+    --panel: #161923;
+    --border: #232734;
+    --text: #e7e9ee;
+    --muted: #9aa3b2;
+    --accent: #6d8bff;
+    --accent2: #35e0c0;
+    --code: #0d0f15;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  code, pre, .mono { font-family: 'JetBrains Mono', monospace; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+  /* Nav */
+  nav {
+    position: sticky; top: 0; z-index: 50;
+    backdrop-filter: blur(12px);
+    background: rgba(10,11,15,0.7);
+    border-bottom: 1px solid var(--border);
+  }
+  nav .wrap { display: flex; align-items: center; justify-content: space-between; height: 62px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 18px; letter-spacing: -0.02em; }
+  .brand .dot { width: 22px; height: 22px; border-radius: 7px; background: linear-gradient(135deg, var(--accent), var(--accent2)); }
+  .nav-links { display: flex; gap: 22px; align-items: center; }
+  .nav-links a { color: var(--muted); font-size: 14px; font-weight: 500; }
+  .nav-links a:hover { color: var(--text); text-decoration: none; }
+  .btn {
+    display: inline-block; padding: 10px 18px; border-radius: 10px;
+    font-weight: 600; font-size: 14px; transition: transform .12s ease, box-shadow .12s ease;
+  }
+  .btn-primary { background: linear-gradient(135deg, var(--accent), #7f6dff); color: #fff; }
+  .btn-primary:hover { text-decoration: none; transform: translateY(-1px); box-shadow: 0 8px 24px rgba(109,139,255,.35); }
+  .btn-ghost { border: 1px solid var(--border); color: var(--text); }
+  .btn-ghost:hover { text-decoration: none; border-color: var(--accent); }
+
+  /* Hero */
+  header.hero { position: relative; overflow: hidden; padding: 96px 0 72px; }
+  .hero::before {
+    content: ""; position: absolute; inset: 0;
+    background:
+      radial-gradient(60% 50% at 50% 0%, rgba(109,139,255,.18), transparent 70%),
+      radial-gradient(40% 40% at 85% 20%, rgba(53,224,192,.12), transparent 70%);
+    pointer-events: none;
+  }
+  .hero .wrap { position: relative; text-align: center; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    border: 1px solid var(--border); background: var(--panel);
+    padding: 6px 14px; border-radius: 999px; font-size: 13px; color: var(--muted); margin-bottom: 26px;
+  }
+  .badge b { color: var(--accent2); font-weight: 600; }
+  h1 {
+    font-size: clamp(38px, 6vw, 66px); font-weight: 800; letter-spacing: -0.03em;
+    line-height: 1.05; margin-bottom: 20px;
+  }
+  h1 .grad { background: linear-gradient(120deg, var(--accent), var(--accent2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .sub { font-size: clamp(17px, 2.4vw, 21px); color: var(--muted); max-width: 720px; margin: 0 auto 34px; }
+  .cta { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-bottom: 40px; }
+  .install {
+    display: inline-flex; align-items: center; gap: 14px;
+    background: var(--code); border: 1px solid var(--border);
+    padding: 14px 18px; border-radius: 12px; font-size: 15px;
+  }
+  .install .prompt { color: var(--accent2); }
+  .install button {
+    background: var(--panel); color: var(--muted); border: 1px solid var(--border);
+    border-radius: 8px; padding: 5px 12px; font-size: 12px; cursor: pointer; font-family: 'Inter';
+  }
+  .install button:hover { color: var(--text); border-color: var(--accent); }
+
+  /* Sections */
+  section { padding: 72px 0; border-top: 1px solid var(--border); }
+  .eyebrow { color: var(--accent2); font-weight: 600; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 12px; text-align: center; }
+  h2 { font-size: clamp(28px, 4vw, 40px); font-weight: 800; letter-spacing: -0.02em; text-align: center; margin-bottom: 14px; }
+  .section-sub { color: var(--muted); text-align: center; max-width: 640px; margin: 0 auto 48px; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
+  .card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 26px; transition: transform .15s ease, border-color .15s ease;
+  }
+  .card:hover { transform: translateY(-3px); border-color: var(--accent); }
+  .card .ico { width: 42px; height: 42px; border-radius: 10px; display: grid; place-items: center; font-size: 20px; margin-bottom: 16px; background: linear-gradient(135deg, rgba(109,139,255,.2), rgba(53,224,192,.15)); }
+  .card h3 { font-size: 18px; margin-bottom: 8px; }
+  .card p { color: var(--muted); font-size: 15px; }
+
+  /* Routing table */
+  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  th, td { text-align: left; padding: 14px 18px; border-bottom: 1px solid var(--border); }
+  th { background: var(--bg2); color: var(--muted); font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; }
+  tr:last-child td { border-bottom: none; }
+  td .pill { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .pill.cheap { background: rgba(53,224,192,.15); color: var(--accent2); }
+  .pill.mid { background: rgba(109,139,255,.18); color: var(--accent); }
+  .pill.frontier { background: rgba(255,138,101,.16); color: #ff8a65; }
+
+  /* Code block */
+  pre.block {
+    background: var(--code); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 22px; overflow-x: auto; font-size: 14px; line-height: 1.7;
+  }
+  pre.block .c { color: #5f6b80; }
+  pre.block .k { color: var(--accent2); }
+  pre.block .p { color: var(--accent); }
+
+  /* Steps */
+  .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; }
+  .step { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; }
+  .step .n { font-family: 'JetBrains Mono'; color: var(--accent); font-size: 13px; margin-bottom: 10px; }
+  .step h3 { font-size: 16px; margin-bottom: 6px; }
+  .step p { color: var(--muted); font-size: 14px; }
+
+  footer { padding: 48px 0 64px; border-top: 1px solid var(--border); color: var(--muted); }
+  footer .wrap { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
+  .foot-links { display: flex; gap: 20px; }
+  .foot-links a { color: var(--muted); font-size: 14px; }
+
+  @media (max-width: 640px) { .nav-links { display: none; } .install { flex-direction: column; align-items: stretch; } }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <div class="brand"><span class="dot"></span> arccode</div>
+    <div class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#routing">Routing</a>
+      <a href="#quickstart">Quickstart</a>
+      <a href="#agents">Agents</a>
+      <a href="https://github.com/acnologiaslayer/arccode">GitHub</a>
+      <a class="btn btn-primary" href="https://github.com/acnologiaslayer/arccode">Star on GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="badge">🧭 <span>Open source</span> · <b>MIT</b> · multi-provider agent harness</div>
+    <h1>One CLI. <span class="grad">Every model.</span><br />The right one, every task.</h1>
+    <p class="sub">
+      arccode is a multi-provider agent harness that routes each task to the right model by
+      <b>complexity, cost, performance, and intent</b>. Spawn specialist agents, load and build
+      skills, and drive tools, Anthropic, OpenAI, and local Ollama behind one interface.
+    </p>
+    <div class="cta">
+      <a class="btn btn-primary" href="#quickstart">Get started</a>
+      <a class="btn btn-ghost" href="https://github.com/acnologiaslayer/arccode">View source</a>
+    </div>
+    <div class="install">
+      <span><span class="prompt">$</span> <span class="mono" id="install-cmd">pipx install git+https://github.com/acnologiaslayer/arccode</span></span>
+      <button onclick="copyInstall()">Copy</button>
+    </div>
+  </div>
+</header>
+
+<section id="features">
+  <div class="wrap">
+    <div class="eyebrow">What it does</div>
+    <h2>A harness with a brain for routing</h2>
+    <p class="section-sub">Everything you need to run agents across providers, decide which model fits, and extend the system at runtime.</p>
+    <div class="grid">
+      <div class="card"><div class="ico">🔀</div><h3>Multi-provider</h3><p>Anthropic, OpenAI, Ollama (local), and OpenRouter behind one normalized interface. Models are hot-swappable.</p></div>
+      <div class="card"><div class="ico">🧭</div><h3>Smart routing</h3><p>A classifier scores every model by capability, cost, and latency for the task's intent and complexity. Overrides always win.</p></div>
+      <div class="card"><div class="ico">🤖</div><h3>Agents as files</h3><p>Markdown + frontmatter, auto-discovered. Each agent pins a model policy, tool allowlist, and skills.</p></div>
+      <div class="card"><div class="ico">📚</div><h3>Skills, on demand</h3><p>Progressive disclosure: skill descriptions are always indexed, bodies load only when needed. Import or build new ones.</p></div>
+      <div class="card"><div class="ico">🕸️</div><h3>Orchestration</h3><p>A coordinator spawns specialists and fans out subtasks, each routed to its own model.</p></div>
+      <div class="card"><div class="ico">🔌</div><h3>MCP, hooks, sessions</h3><p>Connect MCP servers, gate tools with hooks, and resume persistent sessions across runs.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="routing">
+  <div class="wrap">
+    <div class="eyebrow">The router</div>
+    <h2>Pay for frontier only when it matters</h2>
+    <p class="section-sub">arccode picks a model tier from the task's intent and complexity. Cheap models for bulk work, frontier models for hard reasoning.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Intent</th><th>Model tier</th><th>Why</th></tr></thead>
+        <tbody>
+          <tr><td>bulk read / summarize</td><td><span class="pill cheap">small / cheap</span></td><td>high volume, low stakes</td></tr>
+          <tr><td>implement</td><td><span class="pill mid">mid workhorse</span></td><td>good tools + code, moderate cost</td></tr>
+          <tr><td>design / debug / review</td><td><span class="pill frontier">frontier</span></td><td>needs strong reasoning</td></tr>
+          <tr><td>chat</td><td><span class="pill cheap">small</span></td><td>latency matters</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="text-align:center; color:var(--muted); margin-top:22px; font-size:14px;">
+      <span class="mono">arccode whichmodel "refactor the distributed cache layer"</span> explains any decision.
+    </p>
+  </div>
+</section>
+
+<section id="quickstart">
+  <div class="wrap">
+    <div class="eyebrow">Quickstart</div>
+    <h2>Running in two minutes</h2>
+    <p class="section-sub">Install, set a key (or run fully local with Ollama), and go.</p>
+    <pre class="block"><span class="c"># install (isolated, recommended)</span>
+pipx <span class="k">install</span> git+https://github.com/acnologiaslayer/arccode
+<span class="c"># or into the current environment</span>
+pip <span class="k">install</span> git+https://github.com/acnologiaslayer/arccode
+
+<span class="c"># pick your providers</span>
+<span class="p">export</span> ANTHROPIC_API_KEY=...
+<span class="p">export</span> OPENAI_API_KEY=...
+<span class="c"># Ollama runs locally at :11434, no key needed</span>
+
+<span class="c"># run a task (model auto-selected by the router)</span>
+arccode run <span class="k">"Add a --json flag to the export command and test it"</span>
+arccode run <span class="k">"Design a rate limiter for 10k rps"</span> --agent architect -v
+arccode chat                     <span class="c"># interactive REPL</span>
+arccode run <span class="k">"Start a review"</span> -s new    <span class="c"># resumable session</span>
+
+arccode agents                   <span class="c"># list agents</span>
+arccode models                   <span class="c"># catalog + pricing</span>
+arccode whichmodel <span class="k">"fix the failing build"</span></pre>
+  </div>
+</section>
+
+<section id="agents">
+  <div class="wrap">
+    <div class="eyebrow">Built-in agents</div>
+    <h2>A team, out of the box</h2>
+    <p class="section-sub">Six specialists ship by default, each pinned to a sensible model tier. Add your own by dropping a Markdown file in the registry.</p>
+    <div class="grid">
+      <div class="card"><div class="ico">🧑‍✈️</div><h3>coordinator</h3><p>Understands the task, does it or decomposes and delegates. <span class="mono" style="color:var(--accent)">auto</span></p></div>
+      <div class="card"><div class="ico">🔧</div><h3>implementer</h3><p>Writes and edits code, verifies the change. <span class="mono" style="color:var(--accent)">workhorse</span></p></div>
+      <div class="card"><div class="ico">🏛️</div><h3>architect</h3><p>Designs systems, weighs trade-offs, diagrams. <span class="mono" style="color:#ff8a65">frontier</span></p></div>
+      <div class="card"><div class="ico">🐞</div><h3>debugger</h3><p>Root-cause analysis, reproduces and fixes. <span class="mono" style="color:#ff8a65">frontier</span></p></div>
+      <div class="card"><div class="ico">🔎</div><h3>researcher</h3><p>Bulk reading and summarization, cheaply. <span class="mono" style="color:var(--accent2)">bulk-read</span></p></div>
+      <div class="card"><div class="ico">✅</div><h3>reviewer</h3><p>Correctness, security, and design review. <span class="mono" style="color:#ff8a65">frontier</span></p></div>
+    </div>
+  </div>
+</section>
+
+<section id="how">
+  <div class="wrap">
+    <div class="eyebrow">How it works</div>
+    <h2>Task in, right model out</h2>
+    <p class="section-sub">A clean loop: classify, route, run tools, repeat, spawn when it helps.</p>
+    <div class="steps">
+      <div class="step"><div class="n">01</div><h3>Classify</h3><p>Infer intent and complexity from the task.</p></div>
+      <div class="step"><div class="n">02</div><h3>Route</h3><p>Score every model by capability, cost, and latency.</p></div>
+      <div class="step"><div class="n">03</div><h3>Run</h3><p>ReAct loop: the model calls tools, arccode executes them.</p></div>
+      <div class="step"><div class="n">04</div><h3>Spawn</h3><p>Delegate subtasks to specialists, each self-routed.</p></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="brand"><span class="dot"></span> arccode</div>
+    <div class="foot-links">
+      <a href="https://github.com/acnologiaslayer/arccode">GitHub</a>
+      <a href="https://github.com/acnologiaslayer/arccode/blob/master/GUIDE.md">Guide</a>
+      <a href="https://github.com/acnologiaslayer/arccode/issues">Issues</a>
+      <a href="https://github.com/acnologiaslayer/arccode/blob/master/LICENSE">MIT License</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  function copyInstall() {
+    const t = document.getElementById('install-cmd').textContent;
+    navigator.clipboard.writeText(t);
+    event.target.textContent = 'Copied';
+    setTimeout(() => (event.target.textContent = 'Copy'), 1500);
+  }
+</script>
+</body>
+</html>

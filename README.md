@@ -1,5 +1,12 @@
 # arccode
 
+[![CI](https://github.com/acnologiaslayer/arccode/actions/workflows/ci.yml/badge.svg)](https://github.com/acnologiaslayer/arccode/actions/workflows/ci.yml)
+[![Release](https://github.com/acnologiaslayer/arccode/actions/workflows/release.yml/badge.svg)](https://github.com/acnologiaslayer/arccode/actions/workflows/release.yml)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
+**Website: https://acnologiaslayer.github.io/arccode/**
+
 A multi-provider agent harness, as a CLI. arccode routes each task to the right
 model based on **complexity, cost, performance, and intent**, and can **spawn
 specialist agents, load/import skills, and build new agents and skills** at
@@ -41,10 +48,27 @@ flowchart TB
 
 ## Install
 
+Recommended (isolated, global CLI):
+
 ```bash
+pipx install git+https://github.com/acnologiaslayer/arccode
+```
+
+Or into the current environment:
+
+```bash
+pip install git+https://github.com/acnologiaslayer/arccode
+```
+
+From a clone (for development):
+
+```bash
+git clone https://github.com/acnologiaslayer/arccode && cd arccode
 pip install -e .                 # provider SDKs (anthropic, openai) included
 pip install -e '.[dev]'          # + pytest/ruff for development
 ```
+
+Once a release is tagged, the same command works from PyPI: `pipx install arccode`.
 
 Set the keys for whatever providers you use:
 
