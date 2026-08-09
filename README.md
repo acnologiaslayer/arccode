@@ -5,7 +5,7 @@
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-**Website: https://acnologiaslayer.github.io/arccode/**
+**Website: https://acnologiaslayer.github.io/arccode/** (also at http://arcma.dev/arccode/)
 
 A multi-provider agent harness, as a CLI. arccode routes each task to the right
 model based on **complexity, cost, performance, and intent**, and can **spawn
