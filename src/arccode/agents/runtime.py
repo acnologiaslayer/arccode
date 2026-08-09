@@ -13,11 +13,12 @@ console = Console(stderr=True)
 
 
 class Agent:
-    def __init__(self, spec: AgentSpec, ctx, verbose: bool = False):
+    def __init__(self, spec: AgentSpec, ctx, verbose: bool = False,
+                 history: list[Message] | None = None):
         self.spec = spec
         self.ctx = ctx
         self.verbose = verbose
-        self.messages: list[Message] = []
+        self.messages: list[Message] = list(history) if history else []
 
     def _system(self) -> str:
         parts = [self.spec.system]

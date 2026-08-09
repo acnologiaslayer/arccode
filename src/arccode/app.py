@@ -58,9 +58,24 @@ class App:
             self.mcp_clients = {}
 
     def run(self, task: str, agent: str = "coordinator", model: str | None = None,
-            max_steps: int = 40) -> str:
+            max_steps: int = 40, session=None) -> str:
         task = self.commands.expand(task)
-        return self.orchestrator.spawn(agent, task, model, self.ctx)
+        if session is None:
+            return self.orchestrator.spawn(agent, task, model, self.ctx)
+        # Session-backed run: preserve and persist history on the top-level agent.
+        from .agents import Agent
+        spec = self.orchestrator.get(session.agent or agent)
+        if not spec:
+            return f"ERROR: no agent named {session.agent or agent!r}"
+        if model:
+            spec = spec.with_model(model)
+        self.ctx.orchestrator = self.orchestrator
+        agent_obj = Agent(spec, self.ctx, verbose=self.verbose, history=session.messages)
+        result = agent_obj.run(task, max_steps=max_steps)
+        session.messages = agent_obj.messages
+        session.usage = self.ctx.usage
+        session.save()
+        return result
 
     def usage(self) -> dict:
         return self.ctx.usage

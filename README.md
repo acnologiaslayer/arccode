@@ -76,6 +76,14 @@ Force a model, auto-approve tools, run non-interactively:
 arccode run "fix the failing build" -m workhorse -y
 ```
 
+Resumable sessions (history persists to `~/.arccode/sessions/<id>.json`):
+
+```bash
+arccode run "Start reviewing the auth module" -s new     # prints a session id
+arccode run "Now check the token refresh path" -s 20260809-...   # resumes
+arccode sessions                                          # list saved sessions
+```
+
 ## Configuration
 
 - **Models**: edit `src/arccode/config.py`, or point `ARCCODE_CONFIG` at a YAML
@@ -160,10 +168,11 @@ bundles the provider SDKs and that the CLI runs, across Python 3.10-3.12.
 
 arccode implements the core harness architecture those tools share, not their
 full surface. **Present:** multi-provider routing, file-based agents + skills,
-spawn/orchestration, the tool suite above, an MCP stdio client, hooks, and
-slash commands. **Not yet:** response streaming, persistent resumable sessions,
-a browser tool, sandboxed execution, tiered permission policies, background-task
-supervision, and an LLM-based (vs heuristic) router. Contributions welcome.
+spawn/orchestration, the tool suite above, an MCP stdio client, hooks,
+slash commands, and persistent resumable sessions. **Not yet:** response
+streaming, a browser tool, sandboxed execution, tiered permission policies,
+background-task supervision, and an LLM-based (vs heuristic) router.
+Contributions welcome.
 
 ## License
 

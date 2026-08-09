@@ -29,12 +29,28 @@ def run(
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Show routing + tool calls."),
     cwd: str = typer.Option(".", "--cwd", help="Working directory."),
     no_mcp: bool = typer.Option(False, "--no-mcp", help="Disable MCP servers."),
+    session_id: str = typer.Option(None, "--session", "-s",
+        help="Persist to / resume this session id ('new' to start one)."),
     max_steps: int = typer.Option(40, "--max-steps"),
 ):
     """Run a single task with an agent (auto-routed model unless -m given)."""
     a = _app(cwd, yes, verbose, no_mcp)
-    result = a.run(task, agent=agent, model=model, max_steps=max_steps)
+    sess = None
+    if session_id:
+        from .session import Session
+        if session_id == "new":
+            sess = Session.create(agent)
+            console.print(f"[dim]session {sess.id}[/dim]")
+        else:
+            try:
+                sess = Session.load(session_id)
+            except FileNotFoundError:
+                sess = Session.create(agent)
+                sess.id = session_id
+    result = a.run(task, agent=agent, model=model, max_steps=max_steps, session=sess)
     console.print(result)
+    if sess:
+        console.print(f"[dim]session saved: {sess.id} ({len(sess.messages)} turns)[/dim]")
     u = a.usage()
     console.print(f"[dim]tokens in={u['in']} out={u['out']} cost=${u['usd']:.4f}[/dim]",
                   highlight=False)
@@ -129,6 +145,22 @@ def mcp(cwd: str = typer.Option(".", "--cwd")):
         return
     for name, client in clients.items():
         console.print(f"[bold]{name}[/bold]: {[t['name'] for t in client.tools]}")
+
+
+@app.command()
+def sessions():
+    """List saved sessions."""
+    from .session import list_sessions
+    rows = list_sessions()
+    if not rows:
+        console.print("(no sessions)")
+        return
+    table = Table(title="sessions")
+    for col in ("id", "agent", "turns", "cost"):
+        table.add_column(col)
+    for s in rows:
+        table.add_row(s["id"], s["agent"], str(s["turns"]), f"${s['usd']:.4f}")
+    console.print(table)
 
 
 @app.command()
