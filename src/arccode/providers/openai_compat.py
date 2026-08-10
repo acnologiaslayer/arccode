@@ -63,8 +63,18 @@ class OpenAICompatProvider:
         kwargs = {}
         if tools:
             kwargs["tools"] = [_tool(t) for t in tools]
-        resp = client.chat.completions.create(
-            model=model_name, messages=payload, max_tokens=max_out, **kwargs)
+        # Newer OpenAI models reject `max_tokens` and require
+        # `max_completion_tokens`. Try the classic param, then fall back.
+        try:
+            resp = client.chat.completions.create(
+                model=model_name, messages=payload, max_tokens=max_out, **kwargs)
+        except Exception as e:  # noqa: BLE001
+            if _wants_completion_tokens(e):
+                resp = client.chat.completions.create(
+                    model=model_name, messages=payload,
+                    max_completion_tokens=max_out, **kwargs)
+            else:
+                raise
         choice = resp.choices[0]
         msg = choice.message
         calls = []
@@ -81,6 +91,14 @@ class OpenAICompatProvider:
              "out": getattr(usage, "completion_tokens", 0)},
             choice.finish_reason or "stop",
         )
+
+
+def _wants_completion_tokens(err: Exception) -> bool:
+    """True if the error indicates the model wants max_completion_tokens."""
+    msg = str(err).lower()
+    return "max_completion_tokens" in msg or (
+        "max_tokens" in msg and "unsupported" in msg) or (
+        "max_tokens" in msg and "not supported" in msg)
 
 
 def _tool(t: dict) -> dict:

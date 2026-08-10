@@ -1,8 +1,6 @@
 """Anthropic provider adapter (lazy import of the SDK)."""
 from __future__ import annotations
 
-import json
-import os
 
 from .base import Completion, Message, ToolCall
 

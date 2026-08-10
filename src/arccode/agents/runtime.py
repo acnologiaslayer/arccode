@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from rich.console import Console
 
-from ..config import MODELS_BY_ID, resolve
+from ..config import MODELS_BY_ID
 from ..providers import Message, get_provider
 from ..router import route
 from ..tools import DEFAULT_TOOLS, REGISTRY, tool_schemas

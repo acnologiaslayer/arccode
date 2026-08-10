@@ -1,10 +1,8 @@
 """Shell tools: bash (foreground + background), grep."""
 from __future__ import annotations
 
-import os
 import subprocess
 import threading
-import time
 import uuid
 
 from .base import tool
