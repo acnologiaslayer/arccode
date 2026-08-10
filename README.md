@@ -274,3 +274,22 @@ black surfaces (`#060606` / `#141010`).
 ## License
 
 MIT
+
+<!-- arcane-suite:start -->
+
+## The Arcane Suite
+
+Local-first tools for building with generative AI. Every product runs on your own
+hardware and shares a common design language.
+
+| Product | |
+|---|---|
+| **Arcane Agents** (this repository) | Route every task to the right model, from one CLI. |
+| [Arcane Dictate](https://github.com/acnologiaslayer/arcane-dictate) | Press to talk, get text anywhere, fully on-device. |
+| [Arcane Canvas](https://github.com/acnologiaslayer/arcane-canvas) | Compose generative pipelines on an infinite node graph. |
+| [Arcane Speech](https://github.com/acnologiaslayer/arcane-speech) | Zero-shot multilingual speech synthesis. |
+| [Arcane Avatar](https://github.com/acnologiaslayer/arcane-avatar) | Turn one take of footage into a presenter who says anything. |
+
+Full details at [arcma.dev/arcane](https://arcma.dev/arcane).
+
+<!-- arcane-suite:end -->
