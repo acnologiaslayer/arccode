@@ -187,6 +187,29 @@ def sessions():
 
 
 @app.command()
+def providers():
+    """Show AI services: which are connected now and how to enable the rest."""
+    from .services import detect
+    det = detect()
+    table = _table("services")
+    for col in ("service", "status", "tier", "detail"):
+        table.add_column(col)
+    for name, d in det.items():
+        status = "[arc.ok]connected[/arc.ok]" if d.connected else "[arc.muted]off[/arc.muted]"
+        tier = "free" if d.service.free else "paid"
+        detail = d.reason if not d.connected else (
+            f"{len(d.live_models)} model(s)" if d.live_models else "ready")
+        table.add_row(name, status, tier, detail)
+    console.print(table)
+    n_on = sum(1 for d in det.values() if d.connected)
+    if n_on == 0:
+        console.print("[arc.warn]No services connected.[/arc.warn] Start Ollama "
+                      "(`ollama serve`) or set any provider key (e.g. GROQ_API_KEY).")
+    else:
+        console.print(f"[arc.muted]{n_on} connected. Add more by setting their key env var.[/arc.muted]")
+
+
+@app.command()
 def version():
     """Print version."""
     banner = r"""

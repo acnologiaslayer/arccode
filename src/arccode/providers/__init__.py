@@ -9,16 +9,19 @@ _CACHE: dict[str, Provider] = {}
 
 
 def get_provider(model_id: str) -> Provider:
-    """model_id is provider-qualified, e.g. 'anthropic:claude-...' or 'ollama:...'."""
+    """model_id is provider-qualified, e.g. 'anthropic:claude-...' or 'groq:...'.
+
+    Anthropic uses its native SDK; everything else (openai, ollama, groq,
+    gemini, cerebras, mistral, openrouter, github, ...) is OpenAI-compatible and
+    driven by one adapter that resolves base_url + key from the service registry.
+    """
     provider = model_id.split(":", 1)[0] if ":" in model_id else "openai"
     if provider in _CACHE:
         return _CACHE[provider]
     if provider == "anthropic":
         p: Provider = AnthropicProvider()
-    elif provider in ("openai", "ollama", "openrouter"):
-        p = OpenAICompatProvider(provider=provider)
     else:
-        raise ValueError(f"unknown provider: {provider!r}")
+        p = OpenAICompatProvider(provider=provider)
     _CACHE[provider] = p
     return p
 

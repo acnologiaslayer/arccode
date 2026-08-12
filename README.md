@@ -95,14 +95,44 @@ pip install -e '.[dev]'          # + pytest/ruff for development
 > artifacts to a GitHub Release. PyPI trusted publishing is configured for
 > `acnologiaslayer/arccode` (workflow `release.yml`, environment `pypi`).
 
-Set the keys for whatever providers you use:
+## Free AI services (auto-connect)
+
+arccode connects to **every free AI service it can find, automatically**. On
+each run it probes:
+
+- **Ollama** (local, no key) — discovers your installed models live.
+- **Groq**, **Google Gemini**, **Cerebras**, **Mistral**, **OpenRouter**,
+  **GitHub Models** — connected if their API key is in the environment. All have
+  a free tier.
+- **OpenAI**, **Anthropic** — connected if their (paid) key is set.
+
+Detected models are added to the catalog, and the router uses them by fitness.
+Zero config: if Ollama is running or **any** key is set, arccode works.
+
+```bash
+arccode providers        # see what's connected + how to enable the rest
+```
+
+Enable a free service by exporting its key (get one from the link `providers` prints):
+
+```bash
+export GROQ_API_KEY=...        # console.groq.com/keys
+export GEMINI_API_KEY=...      # aistudio.google.com/apikey
+export CEREBRAS_API_KEY=...    # cloud.cerebras.ai
+export MISTRAL_API_KEY=...     # console.mistral.ai/api-keys
+export OPENROUTER_API_KEY=...  # openrouter.ai/keys  (has :free models)
+export GITHUB_MODELS_TOKEN=... # github.com/marketplace/models
+```
+
+Disable auto-detection with `ARCCODE_NO_AUTODETECT=1` (falls back to the static
+catalog).
 
 ## Authentication
 
-arccode accepts two credential types per provider, checked in this order:
+Beyond the auto-connect above, arccode accepts two credential types per
+provider, checked in this order:
 
-1. **API key** (env var, always wins): `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`,
-   `OPENROUTER_API_KEY`. Ollama runs locally at `:11434` with no key.
+1. **API key** (env var, always wins) — the service key vars above.
 2. **OAuth login** (subscription-style, like Claude Code / jcode):
 
 ```bash

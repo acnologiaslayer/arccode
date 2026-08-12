@@ -1,11 +1,8 @@
 """Tests for resumable sessions: real serialization, save/load, and a real
 App.run session-backed loop (LLM stubbed) that persists and resumes history.
 """
-import pathlib
 
-import pytest
 
-import arccode.providers as providers
 import arccode.agents.runtime as rt
 from arccode.providers.base import Completion, Message, ToolCall
 from arccode.session import Session, _dict_to_msg, _msg_to_dict, list_sessions

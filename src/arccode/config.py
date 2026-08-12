@@ -74,9 +74,69 @@ OAUTH_PROVIDERS: dict[str, dict] = {
 }
 
 
+def _catalog_key(provider: str, model_id: str) -> str:
+    """A short, stable catalog key for an auto-discovered model."""
+    slug = model_id.split("/")[-1].replace(":free", "").replace(":", "-")
+    return f"{provider}/{slug}"
+
+
+_EMBED_HINTS = ("embed", "nomic-embed", "bge-", "gte-", "e5-", "all-minilm")
+
+
+def _is_embedding_model(name: str) -> bool:
+    n = name.lower()
+    return any(h in n for h in _EMBED_HINTS)
+
+
+def _models_from_services() -> dict[str, ModelSpec]:
+    """Build catalog entries from every currently-connected service.
+
+    Zero-config power: if Ollama is running or any provider key is set, those
+    models appear in the catalog automatically. Disable with ARCCODE_NO_AUTODETECT.
+    """
+    if os.environ.get("ARCCODE_NO_AUTODETECT"):
+        return {}
+    try:
+        from .services import connected_services
+    except Exception:  # noqa: BLE001
+        return {}
+
+    models: dict[str, ModelSpec] = {}
+    try:
+        detected = connected_services()
+    except Exception:  # noqa: BLE001
+        return {}
+
+    for name, det in detected.items():
+        svc = det.service
+        if svc.dynamic and det.live_models:
+            for m in det.live_models:
+                if _is_embedding_model(m):
+                    continue  # embedding models can't chat; skip
+                key = _catalog_key(name, m)
+                models[key] = ModelSpec(
+                    key, f"{name}:{m}", name, "local", 0.0, 0.0, 32_000,
+                    frozenset({"local", "cheap", "code"}))
+        for s in svc.seeds:
+            key = _catalog_key(name, s.id)
+            models[key] = ModelSpec(
+                key, f"{name}:{s.id}", name, s.tier, s.in_cost, s.out_cost,
+                s.ctx, s.strengths, s.max_out)
+    return models
+
+
 def load_models() -> dict[str, ModelSpec]:
-    """Return the catalog, merged with an optional YAML override."""
-    models = dict(DEFAULT_MODELS)
+    """Return the catalog: auto-detected services, then YAML override on top.
+
+    Auto-detected free/local models are the base. A YAML file at ARCCODE_CONFIG
+    adds or overrides entries and always wins. If nothing is detected and no
+    override exists, fall back to the static DEFAULT_MODELS so the catalog is
+    never empty.
+    """
+    models = _models_from_services()
+    if not models:
+        models = dict(DEFAULT_MODELS)
+
     path = os.environ.get("ARCCODE_CONFIG")
     if path and os.path.exists(path):
         with open(path) as f:
@@ -95,9 +155,19 @@ MODELS_BY_ID = {m.id: m for m in MODELS.values()}
 
 
 def resolve(key_or_id: str) -> ModelSpec:
-    """Accept either a catalog key or a full provider-qualified id."""
+    """Accept either a catalog key or a full provider-qualified id.
+
+    Canonical tier keys from DEFAULT_MODELS (workhorse, frontier-reason, ...)
+    always resolve, even when the live catalog is built from detected services,
+    so pinned aliases and tests stay stable.
+    """
     if key_or_id in MODELS:
         return MODELS[key_or_id]
     if key_or_id in MODELS_BY_ID:
         return MODELS_BY_ID[key_or_id]
+    if key_or_id in DEFAULT_MODELS:
+        return DEFAULT_MODELS[key_or_id]
+    _by_default_id = {m.id: m for m in DEFAULT_MODELS.values()}
+    if key_or_id in _by_default_id:
+        return _by_default_id[key_or_id]
     raise KeyError(f"unknown model: {key_or_id!r} (not a catalog key or known id)")

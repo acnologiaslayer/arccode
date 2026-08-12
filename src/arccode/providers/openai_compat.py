@@ -22,9 +22,16 @@ class OpenAICompatProvider:
     def __init__(self, provider: str = "openai", api_key: str | None = None,
                  base_url: str | None = None):
         self.provider = provider
-        default_base, key_env = _ROUTES.get(provider, (None, "OPENAI_API_KEY"))
+        # Resolve the endpoint from the service registry first, then legacy
+        # _ROUTES, then an env override. This is what lets one adapter serve
+        # groq/gemini/cerebras/mistral/openrouter/github/ollama/openai.
+        svc_base, svc_keyenvs = _service_endpoint(provider)
+        default_base = svc_base
+        if default_base is None:
+            default_base, _ = _ROUTES.get(provider, (None, None))
         self.base_url = base_url or os.environ.get(
             f"{provider.upper()}_BASE_URL", default_base)
+        self._key_envs = svc_keyenvs or _legacy_key_envs(provider)
         self._explicit_key = api_key
         self._client = None
 
@@ -41,12 +48,21 @@ class OpenAICompatProvider:
                 secret, kind = self._explicit_key, "api_key"
             else:
                 secret, kind = resolve(self.provider)
+            # Fall back to any of the service's declared key env vars.
+            if not secret:
+                for env in self._key_envs:
+                    v = os.environ.get(env)
+                    if v:
+                        secret, kind = v, "api_key"
+                        break
             if not secret and self.provider == "ollama":
                 secret, kind = "ollama", "api_key"  # local, key-less
             if not secret:
+                hint = _signup_hint(self.provider)
                 raise RuntimeError(
-                    f"No credentials for {self.provider}. Set the API key or run "
-                    f"'arccode auth login {self.provider}'.")
+                    f"No credentials for {self.provider}. Set the API key"
+                    + (f" ({hint})" if hint else "")
+                    + f" or run 'arccode auth login {self.provider}'.")
             if kind == "oauth":
                 self._client = openai.OpenAI(
                     api_key="oauth", base_url=self.base_url,
@@ -91,6 +107,32 @@ class OpenAICompatProvider:
              "out": getattr(usage, "completion_tokens", 0)},
             choice.finish_reason or "stop",
         )
+
+
+def _service_endpoint(provider: str):
+    """(base_url, key_envs) for a provider from the service registry, or (None, ())."""
+    try:
+        from ..services import SERVICES
+        svc = SERVICES.get(provider)
+        if svc:
+            return svc.base_url, svc.key_envs
+    except Exception:  # noqa: BLE001
+        pass
+    return None, ()
+
+
+def _legacy_key_envs(provider: str) -> tuple:
+    _, key_env = _ROUTES.get(provider, (None, "OPENAI_API_KEY"))
+    return (key_env,) if key_env else ()
+
+
+def _signup_hint(provider: str) -> str:
+    try:
+        from ..services import SERVICES
+        svc = SERVICES.get(provider)
+        return svc.signup if svc else ""
+    except Exception:  # noqa: BLE001
+        return ""
 
 
 def _wants_completion_tokens(err: Exception) -> bool:

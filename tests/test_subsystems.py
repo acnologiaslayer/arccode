@@ -2,11 +2,9 @@
 slash commands, meta-tools (build/import), and the remaining tools.
 These exercise real code with real side effects (a real subprocess for MCP).
 """
-import json
 import pathlib
 import sys
 
-import pytest
 
 from arccode.tools import REGISTRY, Ctx
 from arccode.memory import MemoryStore

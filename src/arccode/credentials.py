@@ -15,6 +15,17 @@ _KEY_ENV = {
 
 
 def api_key(provider: str) -> str | None:
+    # Prefer the service registry's declared env vars (covers all free services),
+    # fall back to the legacy static map.
+    try:
+        from .services import SERVICES
+        svc = SERVICES.get(provider)
+        if svc:
+            k = svc.api_key()
+            if k:
+                return k
+    except Exception:  # noqa: BLE001
+        pass
     return os.environ.get(_KEY_ENV.get(provider, ""))
 
 
