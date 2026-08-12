@@ -6,8 +6,7 @@ models reject max_tokens), and message serialization for the tool loop.
 import pytest
 
 from arccode.providers.base import Message, ToolCall
-from arccode.providers.openai_compat import (OpenAICompatProvider,
-                                             _wants_completion_tokens, _msg)
+from arccode.providers.openai_compat import OpenAICompatProvider, _msg, _wants_completion_tokens
 
 
 class _FakeResp:

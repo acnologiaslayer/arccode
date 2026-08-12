@@ -154,7 +154,7 @@ SERVICES: dict[str, Service] = {
 def _ollama_up(timeout: float = 1.0) -> list[str]:
     """Return locally installed Ollama model names, or [] if not reachable."""
     base = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1")
-    root = base[:-3] if base.endswith("/v1") else base  # /api/tags lives at root
+    root = base.removesuffix("/v1")  # /api/tags lives at root
     try:
         r = httpx.get(root.rstrip("/") + "/api/tags", timeout=timeout)
         r.raise_for_status()

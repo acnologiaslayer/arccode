@@ -26,4 +26,4 @@ def get_provider(model_id: str) -> Provider:
     return p
 
 
-__all__ = ["get_provider", "Provider", "Message", "ToolCall", "Completion"]
+__all__ = ["Completion", "Message", "Provider", "ToolCall", "get_provider"]

@@ -1,10 +1,11 @@
 """Offline tests: routing, loaders, tool registry. No network/API needed."""
+import pathlib
+
+from arccode.agents import load_registry
 from arccode.config import MODELS, resolve
 from arccode.router import classify, route
-from arccode.agents import load_registry
 from arccode.skills import SkillRegistry
-from arccode.tools import REGISTRY, DEFAULT_TOOLS
-import pathlib
+from arccode.tools import DEFAULT_TOOLS, REGISTRY
 
 PKG = pathlib.Path(__file__).resolve().parent.parent / "src" / "arccode"
 

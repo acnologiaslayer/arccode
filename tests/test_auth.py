@@ -14,9 +14,14 @@ import urllib.parse
 import pytest
 
 from arccode import auth
-from arccode.auth import (OAuthProvider, TokenStore, exchange_code, is_expired,
-                          make_pkce, refresh_token)
-
+from arccode.auth import (
+    OAuthProvider,
+    TokenStore,
+    exchange_code,
+    is_expired,
+    make_pkce,
+    refresh_token,
+)
 
 # ---- a real mock OAuth server ----------------------------------------------
 
@@ -31,7 +36,7 @@ class MockOAuthHandler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(json.dumps(obj).encode())
 
-    def do_POST(self):  # noqa: N802
+    def do_POST(self):
         length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(length).decode()
         form = dict(urllib.parse.parse_qsl(body))
@@ -100,7 +105,8 @@ def _provider(base):
 # ---- PKCE ----
 
 def test_pkce_challenge_is_s256_of_verifier():
-    import base64, hashlib
+    import base64
+    import hashlib
     v, c = make_pkce()
     expected = base64.urlsafe_b64encode(hashlib.sha256(v.encode()).digest()).rstrip(b"=").decode()
     assert c == expected
@@ -253,8 +259,8 @@ def test_provider_uses_bearer_when_oauth(monkeypatch):
     """The OpenAI-compat adapter must build its client with a Bearer header when
     credentials resolve to OAuth (no API key). Captures the header without a
     live call by stubbing the openai client constructor."""
-    from arccode.providers.openai_compat import OpenAICompatProvider
     from arccode import credentials
+    from arccode.providers.openai_compat import OpenAICompatProvider
 
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.setattr(credentials, "bearer_token",
@@ -275,8 +281,8 @@ def test_provider_uses_bearer_when_oauth(monkeypatch):
 
 
 def test_anthropic_uses_auth_token_when_oauth(monkeypatch):
-    from arccode.providers.anthropic import AnthropicProvider
     from arccode import credentials
+    from arccode.providers.anthropic import AnthropicProvider
 
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.setattr(credentials, "bearer_token",

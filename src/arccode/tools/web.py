@@ -50,7 +50,7 @@ def web_search(args, ctx):
         return f"ERROR searching: {e}"
     results = re.findall(
         r'result__a"[^>]*href="([^"]+)"[^>]*>(.*?)</a>.*?result__snippet"[^>]*>(.*?)</a>',
-        r.text, re.S)
+        r.text, re.DOTALL)
     num = int(args.get("num", 8))
     out = []
     for href, title, snip in results[:num]:

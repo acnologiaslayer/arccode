@@ -8,12 +8,12 @@ import pathlib
 
 import pytest
 
-import arccode.providers as providers
-from arccode.providers.base import Completion, ToolCall
+from arccode import providers
 from arccode.agents import Agent, AgentSpec
-from arccode.orchestrator import Orchestrator
-from arccode.tools import Ctx
 from arccode.hooks import HookManager
+from arccode.orchestrator import Orchestrator
+from arccode.providers.base import Completion, ToolCall
+from arccode.tools import Ctx
 
 PKG = pathlib.Path(__file__).resolve().parent.parent / "src" / "arccode"
 
@@ -69,7 +69,7 @@ def test_real_loop_executes_tool_and_writes_file(patch_provider, tmp_path):
 
 
 def test_unknown_tool_is_reported_not_crashed(patch_provider, tmp_path):
-    fake = patch_provider([
+    patch_provider([
         Completion("", [ToolCall("c1", "does_not_exist", {})], {"in": 1, "out": 1}, "tool_use"),
         Completion("handled", [], {"in": 1, "out": 1}, "stop"),
     ])
@@ -80,7 +80,7 @@ def test_unknown_tool_is_reported_not_crashed(patch_provider, tmp_path):
 
 
 def test_tool_exception_is_caught(patch_provider, tmp_path):
-    fake = patch_provider([
+    patch_provider([
         Completion("", [ToolCall("c1", "read_file", {"path": str(tmp_path / "nope.txt")})],
                    {"in": 1, "out": 1}, "tool_use"),
         Completion("recovered", [], {"in": 1, "out": 1}, "stop"),
@@ -133,7 +133,7 @@ def test_real_spawn_via_orchestrator(patch_provider, tmp_path):
 def test_real_hook_blocks_tool(patch_provider, tmp_path, monkeypatch):
     """A PreToolUse hook returning non-zero must block the tool in the real loop."""
     blocked_target = tmp_path / "blocked.txt"
-    fake = patch_provider([
+    patch_provider([
         Completion("", [ToolCall("c1", "write_file",
                    {"path": str(blocked_target), "content": "should-not-exist"})],
                    {"in": 1, "out": 1}, "tool_use"),

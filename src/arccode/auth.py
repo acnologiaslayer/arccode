@@ -134,7 +134,7 @@ def is_expired(token: dict) -> bool:
 class _CallbackHandler(http.server.BaseHTTPRequestHandler):
     result: dict = {}
 
-    def do_GET(self):  # noqa: N802
+    def do_GET(self):
         qs = urllib.parse.urlparse(self.path).query
         params = dict(urllib.parse.parse_qsl(qs))
         _CallbackHandler.result = params

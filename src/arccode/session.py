@@ -66,7 +66,7 @@ class Session:
         self.path.write_text(json.dumps(data, indent=2))
 
     @classmethod
-    def load(cls, sid: str) -> "Session":
+    def load(cls, sid: str) -> Session:
         p = _sessions_dir() / f"{sid}.json"
         if not p.exists():
             raise FileNotFoundError(f"no session {sid!r} at {p}")
@@ -77,7 +77,7 @@ class Session:
             data.get("usage"), data.get("meta"))
 
     @classmethod
-    def create(cls, agent: str) -> "Session":
+    def create(cls, agent: str) -> Session:
         return cls(new_id(), agent)
 
 

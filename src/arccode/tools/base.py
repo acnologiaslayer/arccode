@@ -5,10 +5,10 @@ a handler(args, ctx) -> str. Danger tools require confirmation via the policy.
 """
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable
 
-REGISTRY: dict[str, "Tool"] = {}
+REGISTRY: dict[str, Tool] = {}
 
 
 @dataclass
@@ -16,12 +16,12 @@ class Tool:
     name: str
     description: str
     schema: dict
-    handler: Callable[[dict, "Ctx"], str]
+    handler: Callable[[dict, Ctx], str]
     danger: bool = False
 
 
 def tool(name: str, description: str, schema: dict, danger: bool = False):
-    def deco(fn: Callable[[dict, "Ctx"], str]):
+    def deco(fn: Callable[[dict, Ctx], str]):
         REGISTRY[name] = Tool(name, description, schema, fn, danger)
         return fn
     return deco
@@ -60,7 +60,7 @@ class Ctx:
             return False
         return ans.strip().lower() in ("y", "yes")
 
-    def child(self) -> "Ctx":
+    def child(self) -> Ctx:
         c = Ctx(self.cwd, self.agents_dir, self.skills_dir, self.orchestrator,
                 self.skills, self.memory, self.hooks, list(self.todos), self.yes,
                 {"in": 0, "out": 0, "usd": 0.0}, self.depth + 1)

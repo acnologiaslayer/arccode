@@ -5,7 +5,6 @@ it is deterministic and needs no network.
 """
 import importlib
 
-
 from arccode import services
 
 
@@ -64,7 +63,7 @@ def test_dynamic_catalog_build(monkeypatch):
     monkeypatch.delenv("ARCCODE_NO_AUTODETECT", raising=False)
     monkeypatch.setenv("GROQ_API_KEY", "gsk-test")
     monkeypatch.setattr(services, "_ollama_up", lambda timeout=1.0: [])
-    import arccode.config as config
+    from arccode import config
     importlib.reload(config)
     models = config.load_models()
     groq_models = [k for k in models if k.startswith("groq/")]
@@ -77,7 +76,7 @@ def test_dynamic_catalog_build(monkeypatch):
 
 
 def test_embedding_filter():
-    import arccode.config as config
+    from arccode import config
     assert config._is_embedding_model("nomic-embed-text:latest")
     assert config._is_embedding_model("bge-large")
     assert not config._is_embedding_model("qwen2.5-coder")

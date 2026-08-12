@@ -84,7 +84,7 @@ class OpenAICompatProvider:
         try:
             resp = client.chat.completions.create(
                 model=model_name, messages=payload, max_tokens=max_out, **kwargs)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             if _wants_completion_tokens(e):
                 resp = client.chat.completions.create(
                     model=model_name, messages=payload,

@@ -17,7 +17,7 @@ class AgentSpec:
     tools: list[str] = field(default_factory=list)  # empty => DEFAULT_TOOLS
     skills: list[str] = field(default_factory=list)
 
-    def with_model(self, model: str | None) -> "AgentSpec":
+    def with_model(self, model: str | None) -> AgentSpec:
         return AgentSpec(self.name, self.system, self.description, model,
                          self.effort, list(self.tools), list(self.skills))
 

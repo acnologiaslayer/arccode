@@ -5,11 +5,10 @@ These exercise real code with real side effects (a real subprocess for MCP).
 import pathlib
 import sys
 
-
-from arccode.tools import REGISTRY, Ctx
-from arccode.memory import MemoryStore
 from arccode.hooks import SlashCommands
+from arccode.memory import MemoryStore
 from arccode.skills import SkillRegistry
+from arccode.tools import REGISTRY, Ctx
 
 PKG = pathlib.Path(__file__).resolve().parent.parent / "src" / "arccode"
 STUB = pathlib.Path(__file__).resolve().parent / "mcp_stub.py"
@@ -103,7 +102,7 @@ def test_build_agent_writes_file(tmp_path):
     agents_dir.mkdir()
     ctx = _ctx(tmp_path)
     ctx.agents_dir = str(agents_dir)
-    out = REGISTRY["build_agent"].handler(
+    REGISTRY["build_agent"].handler(
         {"name": "poet", "description": "Writes poems.",
          "system": "You write poems.", "model": "workhorse",
          "tools": ["read_file"]}, ctx)
