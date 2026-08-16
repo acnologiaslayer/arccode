@@ -89,3 +89,23 @@ def test_openai_compat_resolves_service_endpoint():
     assert "GROQ_API_KEY" in envs
     base2, _ = _service_endpoint("gemini")
     assert "generativelanguage.googleapis.com" in base2
+
+
+def test_router_prefers_usable_provider(monkeypatch):
+    """With autodetect on and only one provider's key set, routing must pick a
+    usable model even if a higher-scoring one is unauthenticated."""
+    import importlib
+    monkeypatch.delenv("ARCCODE_NO_AUTODETECT", raising=False)
+    monkeypatch.setenv("GROQ_API_KEY", "gsk-test")
+    monkeypatch.setattr(services, "_ollama_up", lambda timeout=1.0: [])
+    import arccode.config as config
+    import arccode.router as router
+    importlib.reload(config)
+    importlib.reload(router)
+    d = router.route("architect a distributed migration plan")
+    # only groq is usable -> chosen model must be a groq model
+    assert d.model.provider == "groq", d.model.id
+    # restore
+    monkeypatch.setenv("ARCCODE_NO_AUTODETECT", "1")
+    importlib.reload(config)
+    importlib.reload(router)

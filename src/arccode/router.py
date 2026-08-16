@@ -69,6 +69,23 @@ def score(spec: ModelSpec, needs: set[str], complexity: float) -> float:
     return w["capability"] * capability + w["cost"] * cost + w["latency"] * latency
 
 
+def _usable_provider(provider: str) -> bool:
+    """True if this provider can actually be called right now (key set or local up)."""
+    try:
+        from .credentials import resolve as resolve_cred
+        secret, kind = resolve_cred(provider)
+        if secret:
+            return True
+    except Exception:  # noqa: BLE001
+        pass
+    # Ollama (local) is usable when its service is detected as connected.
+    try:
+        from .services import connected_services
+        return provider in connected_services()
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def route(task: str, *, force: str | None = None) -> RouteDecision:
     if force:
         spec = resolve(force)
@@ -76,7 +93,23 @@ def route(task: str, *, force: str | None = None) -> RouteDecision:
     intent, complexity = classify(task)
     needs = INTENT_NEEDS[intent]
     ranked = sorted(MODELS.values(), key=lambda s: score(s, needs, complexity), reverse=True)
-    best = ranked[0]
-    reason = (f"intent={intent} complexity={complexity} needs={sorted(needs)} "
+
+    # Prefer models whose provider is actually usable right now (credential-aware
+    # routing). This makes zero-config runs "just work" against connected free
+    # services instead of failing on a higher-scoring but unauthenticated model.
+    # Disabled in deterministic mode (ARCCODE_NO_AUTODETECT) so fitness ranking
+    # can be reasoned about without regard to the local environment's keys.
+    import os as _os
+    if _os.environ.get("ARCCODE_NO_AUTODETECT"):
+        best = ranked[0]
+        reason = (f"intent={intent} complexity={complexity} needs={sorted(needs)} "
+                  f"-> {best.key} ({best.id})")
+        return RouteDecision(best, intent, complexity, reason)
+
+    usable = [s for s in ranked if _usable_provider(s.provider)]
+    pool = usable or ranked
+    best = pool[0]
+    gated = " (usable-only)" if usable and best is not ranked[0] else ""
+    reason = (f"intent={intent} complexity={complexity} needs={sorted(needs)}{gated} "
               f"-> {best.key} ({best.id})")
     return RouteDecision(best, intent, complexity, reason)

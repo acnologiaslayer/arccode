@@ -30,6 +30,17 @@ class Agent:
 
     def run(self, task: str, max_steps: int = 40) -> str:
         decision = route(task, force=self.spec.model)
+        # If the agent pins a model whose provider isn't usable right now, fall
+        # back to credential-aware auto-routing so zero-config runs still work.
+        if self.spec.model:
+            from ..router import _usable_provider
+            if not _usable_provider(decision.model.provider):
+                alt = route(task, force=None)
+                if _usable_provider(alt.model.provider):
+                    if self.verbose:
+                        console.print(f"[dim]pinned {decision.model.key} unusable "
+                                      f"(no creds); falling back to {alt.model.key}[/dim]")
+                    decision = alt
         model_id = decision.model.id
         provider = get_provider(model_id)
         tool_names = self.spec.tools or DEFAULT_TOOLS
