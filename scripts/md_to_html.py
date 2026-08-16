@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
-"""Render the arccode vision Markdown to a print-styled HTML for PDF export."""
+"""Render a Markdown file to a print-styled HTML for PDF export.
+
+Usage: md_to_html.py [SRC.md [OUT.html]]
+Defaults to the vision doc if no args are given.
+"""
 import sys
 import markdown
 
-SRC = "/mnt/c/Users/arcma/OneDrive/Desktop/agent-harness-vision-and-method.md"
-OUT = "/mnt/c/Users/arcma/OneDrive/Desktop/agent-harness-vision-and-method.html"
+_DEFAULT = "/mnt/c/Users/arcma/OneDrive/Desktop/agent-harness-vision-and-method.md"
+SRC = sys.argv[1] if len(sys.argv) > 1 else _DEFAULT
+OUT = sys.argv[2] if len(sys.argv) > 2 else SRC.rsplit(".", 1)[0] + ".html"
 
 md_text = open(SRC, encoding="utf-8").read()
 html_body = markdown.markdown(
@@ -48,10 +53,12 @@ code {
 }
 pre {
   background: #14100f; color: #ece0e0; padding: 14px 16px; border-radius: 6px;
-  overflow-x: auto; font-size: 9pt; line-height: 1.5; margin: 10px 0;
+  font-size: 9pt; line-height: 1.5; margin: 10px 0;
   page-break-inside: avoid;
+  white-space: pre-wrap; word-wrap: break-word; overflow-wrap: anywhere;
 }
-pre code { background: none; color: #ece0e0; padding: 0; }
+pre code { background: none; color: #ece0e0; padding: 0;
+  white-space: pre-wrap; word-wrap: break-word; overflow-wrap: anywhere; }
 table {
   border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 10pt;
   page-break-inside: avoid;
@@ -62,9 +69,11 @@ tr:nth-child(even) td { background: #faf5f5; }
 h2, h3 { page-break-inside: avoid; }
 """
 
+_title = next((ln.lstrip("# ").strip() for ln in md_text.splitlines()
+               if ln.startswith("# ")), "Document")
 full = f"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
-<title>Building a Multi-Provider Agent Harness</title>
+<title>{_title}</title>
 <style>{CSS}</style></head><body>{html_body}</body></html>"""
 
 open(OUT, "w", encoding="utf-8").write(full)

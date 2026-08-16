@@ -134,6 +134,10 @@ SERVICES: dict[str, Service] = {
         "openai", "OpenAI", None, ("OPENAI_API_KEY",),
         free=False, signup="https://platform.openai.com/api-keys",
         seeds=(
+            SeedModel("gpt-4o", "frontier", 128_000,
+                      frozenset({"reasoning", "code", "tools", "vision"}), 2.50, 10.0),
+            SeedModel("gpt-4o-mini", "small", 128_000,
+                      frozenset({"speed", "cheap", "tools"}), 0.15, 0.60),
             SeedModel("gpt-5-mini", "small", 128_000,
                       frozenset({"speed", "cheap", "tools"}), 0.15, 0.60),
             SeedModel("gpt-5-nano", "small", 400_000,
