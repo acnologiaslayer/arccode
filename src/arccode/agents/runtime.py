@@ -29,6 +29,27 @@ def _fallback_models(primary):
     return ordered
 
 
+def _friendly_error(model_id: str, err: Exception, msg: str) -> str:
+    """Turn a raw provider error into an actionable message for the user."""
+    low = (str(err) + " " + msg).lower()
+    provider = model_id.split(":", 1)[0] if ":" in model_id else model_id
+    if "429" in low or "rate_limit" in low or "rate limit" in low:
+        return (f"Rate limited by {provider} (all fallbacks busy too). "
+                f"Wait a moment and retry, or connect another service: arccode providers")
+    if "401" in low or "invalid" in low and "key" in low or "unauthorized" in low:
+        return (f"Authentication failed for {provider}. Check the API key, "
+                f"or run: arccode auth login {provider}")
+    if "no credentials" in low:
+        return msg  # already actionable from the provider adapter
+    if "insufficient" in low or "quota" in low or "billing" in low:
+        return (f"{provider} quota/billing issue. Check your account, or switch "
+                f"to a free service: arccode providers")
+    if "timeout" in low or "timed out" in low or "connection" in low:
+        return (f"Network problem reaching {provider}. Check your connection, "
+                f"or use a local model (run `ollama serve`).")
+    return f"Couldn't reach {provider} ({msg}). Run `arccode doctor` to check your setup."
+
+
 def _friendly_tool(call) -> str:
     """Turn a tool call into a short human-readable status line."""
     a = call.args or {}
@@ -124,7 +145,7 @@ class Agent:
                 msg = str(e).splitlines()[0] if str(e) else e.__class__.__name__
                 if self.verbose:
                     console.print(f"[red]provider error: {msg}[/red]")
-                return f"ERROR: provider call failed ({active_id}): {msg}"
+                return _friendly_error(active_id, e, msg)
 
             # If we failed over to a different model, keep using it first next turn.
             if used.id != active_id:

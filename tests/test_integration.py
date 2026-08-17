@@ -98,8 +98,9 @@ def test_provider_error_returns_gracefully(monkeypatch, tmp_path):
     monkeypatch.setattr(rt, "get_provider", lambda m: Boom())
     spec = AgentSpec("t", "s", model="workhorse")
     result = Agent(spec, _ctx(tmp_path)).run("go")
-    assert result.startswith("ERROR: provider call failed")
-    assert "410 Gone" in result
+    # friendly error: names the provider and points to a next step, no traceback
+    assert "workhorse" in result or "anthropic" in result
+    assert "doctor" in result or "retry" in result or "Couldn't reach" in result
 
 
 def test_real_spawn_via_orchestrator(patch_provider, tmp_path):

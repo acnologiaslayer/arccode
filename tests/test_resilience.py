@@ -111,3 +111,13 @@ def test_retry_after_header_respected(monkeypatch):
         tools=[], effort="low", policy=RetryPolicy(max_attempts=3))
     assert comp.text == "ok"
     assert captured["slept"] == 2.0   # honored Retry-After
+
+
+def test_friendly_error_messages():
+    from arccode.agents.runtime import _friendly_error
+    class E(Exception):
+        status_code = 429
+    assert "Rate limited" in _friendly_error("openai:gpt-4o", E(), "429 rate_limit")
+    assert "Authentication failed" in _friendly_error("openai:gpt-4o", Exception("401 unauthorized"), "401")
+    assert "Network problem" in _friendly_error("openai:gpt-4o", Exception("connection timed out"), "timeout")
+    assert "arccode doctor" in _friendly_error("openai:gpt-4o", Exception("weird"), "weird 500")

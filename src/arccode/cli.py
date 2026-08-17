@@ -87,6 +87,14 @@ def run(
     max_steps: int = typer.Option(40, "--max-steps"),
 ):
     """Run a single task with an agent (auto-routed model unless -m given)."""
+    if model:
+        from .config import resolve as _resolve_model
+        try:
+            _resolve_model(model)
+        except KeyError:
+            console.print(f"[arc.err]Unknown model '{model}'.[/arc.err] "
+                          "See available models with [arc.accent2]arccode models[/arc.accent2].")
+            raise typer.Exit(1)
     a = _app(cwd, yes, verbose, no_mcp)
     sess = None
     if session_id:
