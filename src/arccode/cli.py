@@ -1,6 +1,8 @@
 """arccode CLI."""
 from __future__ import annotations
 
+import os
+
 import typer
 from rich.console import Console
 from rich.table import Table
@@ -215,6 +217,70 @@ def mcp(cwd: str = typer.Option(".", "--cwd")):
         return
     for name, client in clients.items():
         console.print(f"[bold]{name}[/bold]: {[t['name'] for t in client.tools]}")
+
+
+@app.command()
+def doctor():
+    """Diagnose your setup: Python, connected services, PATH, and config."""
+    import shutil
+    import sys as _sys
+
+    from .services import detect
+
+    ok, warn, bad = "[arc.ok]✓[/arc.ok]", "[arc.warn]![/arc.warn]", "[arc.err]✗[/arc.err]"
+    lines = []
+
+    # Python version
+    v = _sys.version_info
+    pyok = v >= (3, 10)
+    lines.append((ok if pyok else bad,
+                  f"Python {v.major}.{v.minor}.{v.micro}" +
+                  ("" if pyok else " (need 3.10+)")))
+
+    # arccode on PATH
+    on_path = shutil.which("arccode")
+    lines.append((ok if on_path else warn,
+                  f"arccode on PATH: {on_path}" if on_path else
+                  "arccode not on PATH (add ~/.local/bin to PATH)"))
+
+    # Connected services
+    try:
+        det = detect()
+        conn = [n for n, d in det.items() if d.connected]
+    except Exception as e:  # noqa: BLE001
+        conn, det = [], {}
+        lines.append((bad, f"service detection failed: {e}"))
+    if conn:
+        lines.append((ok, f"{len(conn)} AI service(s) connected: {', '.join(conn)}"))
+    else:
+        lines.append((bad, "no AI services connected"))
+        lines.append((warn, "  fix: run `ollama serve`, or set a key "
+                            "(e.g. export GROQ_API_KEY=... / OPENAI_API_KEY=...)"))
+
+    # provider SDKs importable
+    for mod, label in (("openai", "openai SDK"), ("anthropic", "anthropic SDK")):
+        try:
+            __import__(mod)
+            lines.append((ok, f"{label} installed"))
+        except ImportError:
+            lines.append((warn, f"{label} missing (pip install {mod})"))
+
+    # config locations
+    import pathlib
+    home = pathlib.Path(os.environ.get("ARCCODE_HOME", pathlib.Path.home() / ".arccode"))
+    lines.append((ok if home.exists() else warn, f"config dir: {home}"))
+
+    table = _table("arccode doctor")
+    table.add_column("")
+    table.add_column("check")
+    for mark, text in lines:
+        table.add_row(mark, text)
+    console.print(table)
+    if conn:
+        console.print("[arc.ok]Ready to go.[/arc.ok] Try: arccode run \"summarize this project\"")
+    else:
+        console.print("[arc.warn]Not ready:[/arc.warn] connect a service (see fixes above), "
+                      "then run `arccode providers`.")
 
 
 @app.command()
