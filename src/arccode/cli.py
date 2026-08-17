@@ -27,8 +27,38 @@ ARC_THEME = Theme({
     "table.header": "bold red",
 })
 
-app = typer.Typer(add_completion=False, help="arccode - multi-provider agent harness CLI")
+app = typer.Typer(add_completion=False, help="arccode - multi-provider agent harness CLI",
+                  invoke_without_command=True)
 console = Console(theme=ARC_THEME)
+
+
+@app.callback()
+def _root(ctx: typer.Context):
+    """Show a friendly welcome + status when run with no command."""
+    if ctx.invoked_subcommand is not None:
+        return
+    from rich.panel import Panel
+    from .services import detect
+    try:
+        det = detect()
+        conn = [n for n, d in det.items() if d.connected]
+    except Exception:  # noqa: BLE001
+        conn = []
+    status = (f"[arc.ok]{len(conn)} service(s) connected[/arc.ok]: {', '.join(conn)}"
+              if conn else "[arc.warn]no services connected[/arc.warn] - start Ollama or set a key")
+    body = (
+        f"[arc.accent2]arccode[/arc.accent2] [arc.muted]v{__version__}[/arc.muted] "
+        f"- route each task to the right model\n\n"
+        f"{status}\n\n"
+        "[bold]Try:[/bold]\n"
+        "  arccode run [arc.accent2]\"summarize this project\"[/arc.accent2]   run a task\n"
+        "  arccode chat                            interactive session\n"
+        "  arccode providers                       see connected AI services\n"
+        "  arccode agents                          list your specialist agents\n"
+        "  arccode --help                          all commands"
+    )
+    console.print(Panel(body, border_style="red", title="[bold red]welcome[/bold red]",
+                        title_align="left", padding=(1, 2)))
 
 
 def _table(title: str) -> Table:
