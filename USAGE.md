@@ -356,6 +356,34 @@ Then in a run or chat, `/review the login flow` expands to the template with
 
 ---
 
+## Shell completion
+
+Tab-complete commands, flags, agent names, and model keys in your shell.
+
+```bash
+# one-shot install (auto-detects your shell from $SHELL)
+arccode completion --install
+
+# or target a shell explicitly
+arccode completion bash --install
+arccode completion zsh  --install
+arccode completion fish --install
+```
+
+Restart your shell (or `source ~/.bashrc`) and press `<Tab>`:
+
+```bash
+arccode run --agent <Tab>       # -> architect coordinator debugger implementer ...
+arccode run -m ollama/<Tab>     # -> model keys from the live catalog
+arccode <Tab>                   # -> run chat agents skills models doctor ...
+```
+
+Agent and model suggestions are **dynamic**: they reflect your current agents
+directory and the connected-provider catalog. To inspect or redirect the raw
+script instead of installing, run `arccode completion bash` (prints to stdout).
+
+---
+
 ## Configuration reference
 
 | Path / var | Purpose |

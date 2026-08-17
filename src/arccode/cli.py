@@ -32,6 +32,49 @@ ARC_THEME = Theme({
 app = typer.Typer(add_completion=False, help="arccode - multi-provider agent harness CLI",
                   invoke_without_command=True)
 console = Console(theme=ARC_THEME)
+# Separate stderr console so hints don't pollute redirected stdout (e.g. when a
+# user does `arccode completion bash > file`).
+console_err = Console(theme=ARC_THEME, stderr=True)
+
+# We keep Typer's auto-added `--install-completion/--show-completion` options off
+# (add_completion=False) for a clean help screen, but still register the shell
+# completion classes so runtime <Tab> completion works once the user installs a
+# script via `arccode completion`.
+try:
+    from typer._completion_classes import completion_init as _completion_init
+    _completion_init()
+except Exception:  # noqa: BLE001, S110
+    pass
+
+
+# --- Shell tab-completion helpers -------------------------------------------
+# These power `--agent`/`--model` value completion. They must be cheap and never
+# raise: the shell calls them synchronously on every <Tab>.
+
+def _complete_agents(incomplete: str):
+    """Complete agent names from the active registry (env-overridable)."""
+    try:
+        import pathlib
+
+        from .agents import load_registry
+        default = pathlib.Path(__file__).resolve().parent / "agents" / "registry"
+        agents_dir = os.environ.get("ARCCODE_AGENTS_DIR") or str(default)
+        reg = load_registry(pathlib.Path(agents_dir).expanduser())
+        for name, spec in sorted(reg.items()):
+            if name.startswith(incomplete):
+                yield (name, (spec.description or "")[:50])
+    except Exception:  # noqa: BLE001, S110
+        pass
+
+
+def _complete_models(incomplete: str):
+    """Complete model catalog keys (and provider/id forms)."""
+    try:
+        for key, spec in sorted(MODELS.items()):
+            if key.startswith(incomplete):
+                yield (key, getattr(spec, "id", ""))
+    except Exception:  # noqa: BLE001, S110
+        pass
 
 
 @app.callback()
@@ -76,8 +119,10 @@ def _app(cwd: str, yes: bool, verbose: bool, no_mcp: bool) -> App:
 @app.command()
 def run(
     task: str = typer.Argument(..., help="The task/prompt to run."),
-    agent: str = typer.Option("coordinator", "--agent", "-a", help="Agent to use."),
-    model: str = typer.Option(None, "--model", "-m", help="Force a model (catalog key or id)."),
+    agent: str = typer.Option("coordinator", "--agent", "-a", help="Agent to use.",
+        autocompletion=_complete_agents),
+    model: str = typer.Option(None, "--model", "-m", help="Force a model (catalog key or id).",
+        autocompletion=_complete_models),
     yes: bool = typer.Option(False, "--yes", "-y", help="Auto-approve danger tools."),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Show routing + tool calls."),
     cwd: str = typer.Option(".", "--cwd", help="Working directory."),
@@ -168,8 +213,10 @@ def run(
 
 @app.command()
 def chat(
-    agent: str = typer.Option("coordinator", "--agent", "-a"),
-    model: str = typer.Option(None, "--model", "-m"),
+    agent: str = typer.Option("coordinator", "--agent", "-a",
+        autocompletion=_complete_agents),
+    model: str = typer.Option(None, "--model", "-m",
+        autocompletion=_complete_models),
     yes: bool = typer.Option(False, "--yes", "-y"),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
     cwd: str = typer.Option(".", "--cwd"),
@@ -337,9 +384,10 @@ def whichmodel(task: str):
 
 @app.command()
 def spawn(
-    agent: str = typer.Argument(...),
+    agent: str = typer.Argument(..., autocompletion=_complete_agents),
     task: str = typer.Argument(...),
-    model: str = typer.Option(None, "--model", "-m"),
+    model: str = typer.Option(None, "--model", "-m",
+        autocompletion=_complete_models),
     yes: bool = typer.Option(False, "--yes", "-y"),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
     cwd: str = typer.Option(".", "--cwd"),
@@ -480,6 +528,84 @@ def version():
 
 auth_app = typer.Typer(help="Authenticate with providers via OAuth.")
 app.add_typer(auth_app, name="auth")
+
+
+@app.command()
+def completion(
+    shell: str = typer.Argument(None,
+        help="Shell to target: bash, zsh, or fish. Auto-detected from $SHELL if omitted."),
+    install: bool = typer.Option(False, "--install",
+        help="Append the loader line to your shell rc file."),
+):
+    """Set up shell tab-completion for arccode (agents, models, commands, flags).
+
+    Without --install this prints the completion script; pipe it to a file. With
+    --install it wires the loader into your shell rc so completion just works.
+    """
+    import pathlib
+
+    sh = (shell or os.environ.get("SHELL", "")).rsplit("/", 1)[-1].strip().lower()
+    if sh not in ("bash", "zsh", "fish"):
+        console.print(f"[arc.err]unsupported shell '{sh or shell}'[/arc.err] "
+                      "(supported: bash, zsh, fish)")
+        raise typer.Exit(1)
+
+    # Typer generates the completion script for us (no subprocess needed).
+    try:
+        from typer._completion_shared import get_completion_script
+        script = get_completion_script(
+            prog_name="arccode", complete_var="_ARCCODE_COMPLETE", shell=sh)
+    except Exception:  # noqa: BLE001
+        script = ""
+
+    if not script.strip():
+        console.print("[arc.warn]Could not generate the script.[/arc.warn] "
+                      "Run this once to enable completion:")
+        _print_completion_hint(sh)
+        raise typer.Exit(0)
+
+    if not install:
+        # Print raw script for redirection: `arccode completion bash > file`.
+        print(script)
+        console_err.print("\n[arc.muted]Save it and source it, e.g.:[/arc.muted]")
+        _print_completion_hint(sh)
+        return
+
+    # --install: write the script where the shell will load it.
+    if sh == "fish":
+        dest = pathlib.Path.home() / ".config" / "fish" / "completions" / "arccode.fish"
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(script)
+        console.print(f"[arc.ok]✓ installed[/arc.ok] completion into {dest}")
+        console.print("[arc.muted]Restart fish (it auto-loads this file).[/arc.muted]")
+        return
+
+    cfg = pathlib.Path.home() / ".arccode"
+    cfg.mkdir(parents=True, exist_ok=True)
+    script_path = cfg / f"completion.{sh}"
+    script_path.write_text(script)
+    rc = pathlib.Path.home() / (".bashrc" if sh == "bash" else ".zshrc")
+    loader = f"source {script_path}"
+    rc.parent.mkdir(parents=True, exist_ok=True)
+    existing = rc.read_text() if rc.exists() else ""
+    if loader in existing:
+        console.print(f"[arc.ok]already installed[/arc.ok] in {rc}")
+    else:
+        with rc.open("a") as f:
+            f.write(f"\n# arccode shell completion\n{loader}\n")
+        console.print(f"[arc.ok]✓ installed[/arc.ok] completion into {rc}")
+    console.print(f"[arc.muted]Restart your shell or run: source {rc}[/arc.muted]")
+
+
+def _print_completion_hint(sh: str):
+    if sh == "fish":
+        console_err.print("[arc.accent2]  arccode completion fish "
+                          "> ~/.config/fish/completions/arccode.fish[/arc.accent2]")
+    else:
+        rc = "~/.bashrc" if sh == "bash" else "~/.zshrc"
+        console_err.print(f"[arc.accent2]  arccode completion {sh} --install[/arc.accent2]"
+                          f"[arc.muted]  (or: arccode completion {sh} > ~/.arccode/completion.{sh} "
+                          f"&& echo 'source ~/.arccode/completion.{sh}' >> {rc})[/arc.muted]")
 
 
 @auth_app.command("login")

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.0
+
+Shell tab-completion.
+
+### Added
+- **`arccode completion`**: install shell tab-completion for bash, zsh, and fish.
+  `--install` wires a loader into your rc (idempotent; fish drops a file into its
+  completions dir); without it the raw script prints to stdout for redirection.
+- **Dynamic value completion**: `<Tab>` after `--agent` suggests agent names from
+  your active registry, and after `--model`/`-m` suggests catalog model keys,
+  both prefix-filtered. Commands, subcommands, and flags complete too.
+
 ## 0.3.0
 
 Live streaming + scripting.
