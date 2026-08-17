@@ -279,9 +279,11 @@ bundles the provider SDKs and that the CLI runs, across Python 3.10-3.12.
 arccode implements the core harness architecture those tools share, not their
 full surface. **Present:** multi-provider routing, file-based agents + skills,
 spawn/orchestration, the tool suite above, an MCP stdio client, hooks,
-slash commands, and persistent resumable sessions. **Not yet:** response
-streaming, a browser tool, sandboxed execution, tiered permission policies,
-background-task supervision, and an LLM-based (vs heuristic) router.
+slash commands, and persistent resumable sessions. It is **resilient**: transient
+provider errors (429/5xx/timeouts) are retried with backoff, and an unavailable
+model fails over to the next usable one so a run still completes. **Not yet:**
+response streaming, a browser tool, sandboxed execution, tiered permission
+policies, background-task supervision, and an LLM-based (vs heuristic) router.
 Contributions welcome.
 
 ## Branding

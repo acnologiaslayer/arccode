@@ -3,13 +3,30 @@ from __future__ import annotations
 
 from rich.console import Console
 
-from ..config import MODELS_BY_ID
+from ..config import MODELS, MODELS_BY_ID
 from ..providers import Message, get_provider
+from ..resilience import RetryPolicy, complete_resilient
 from ..router import route
 from ..tools import DEFAULT_TOOLS, REGISTRY, tool_schemas
 from .loader import AgentSpec
 
 console = Console(stderr=True)
+
+
+def _fallback_models(primary):
+    """Ordered candidate models: primary first, then other usable providers,
+    cheapest tiers first, so a rate-limited primary can fail over gracefully."""
+    from ..router import _usable_provider
+    seen = {primary.id}
+    ordered = [primary]
+    tier_rank = {"small": 0, "local": 1, "mid": 2, "frontier": 3}
+    for spec in sorted(MODELS.values(), key=lambda s: tier_rank.get(s.tier, 9)):
+        if spec.id in seen:
+            continue
+        if _usable_provider(spec.provider):
+            ordered.append(spec)
+            seen.add(spec.id)
+    return ordered
 
 
 class Agent:
@@ -42,7 +59,6 @@ class Agent:
                                       f"(no creds); falling back to {alt.model.key}[/dim]")
                     decision = alt
         model_id = decision.model.id
-        provider = get_provider(model_id)
         tool_names = self.spec.tools or DEFAULT_TOOLS
         schemas = tool_schemas(tool_names)
 
@@ -52,19 +68,35 @@ class Agent:
 
         self.messages.append(Message("user", task))
         final = ""
+        candidates = [(get_provider(s.id), s) for s in _fallback_models(decision.model)]
+        active_id = model_id
+
+        def _log(kind, detail):
+            if self.verbose:
+                color = "yellow" if kind == "retry" else "magenta"
+                console.print(f"[{color}]{detail}[/{color}]")
+
         for step in range(max_steps):
             try:
-                comp = provider.complete(
-                    model=model_id, system=self._system(),
-                    messages=self.messages, tools=schemas,
-                    effort=self.spec.effort, max_out=decision.model.max_out)
+                comp, used = complete_resilient(
+                    providers_and_models=candidates,
+                    system=self._system(), messages=self.messages,
+                    tools=schemas, effort=self.spec.effort,
+                    policy=RetryPolicy(), on_event=_log)
             except Exception as e:  # noqa: BLE001
                 msg = str(e).splitlines()[0] if str(e) else e.__class__.__name__
                 if self.verbose:
                     console.print(f"[red]provider error: {msg}[/red]")
-                return f"ERROR: provider call failed ({decision.model.id}): {msg}"
+                return f"ERROR: provider call failed ({active_id}): {msg}"
 
-            self._account(model_id, comp.usage)
+            # If we failed over to a different model, keep using it first next turn.
+            if used.id != active_id:
+                active_id = used.id
+                candidates = [(get_provider(s.id), s) for s in _fallback_models(used)]
+                if self.verbose:
+                    console.print(f"[magenta]failed over to {used.key} ({used.id})[/magenta]")
+
+            self._account(used.id, comp.usage)
 
             if comp.text:
                 final = comp.text
