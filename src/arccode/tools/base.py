@@ -47,6 +47,7 @@ class Ctx:
     memory: object = None  # MemoryStore
     hooks: object = None  # HookManager
     on_status: object = None  # optional callback(text) for live step feedback
+    on_text: object = None  # optional callback(delta) to stream assistant text
     touched: set = field(default_factory=set)  # files created/edited this run
     todos: list = field(default_factory=list)
     yes: bool = False  # auto-confirm danger tools (non-interactive)
@@ -66,6 +67,7 @@ class Ctx:
         return Ctx(
             cwd=self.cwd, agents_dir=self.agents_dir, skills_dir=self.skills_dir,
             orchestrator=self.orchestrator, skills=self.skills, memory=self.memory,
-            hooks=self.hooks, on_status=self.on_status, touched=self.touched,
+            hooks=self.hooks, on_status=self.on_status, on_text=self.on_text,
+            touched=self.touched,
             todos=list(self.todos),
             yes=self.yes, usage={"in": 0, "out": 0, "usd": 0.0}, depth=self.depth + 1)

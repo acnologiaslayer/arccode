@@ -79,11 +79,12 @@ def _sleep_for(policy: RetryPolicy, attempt: int, retry_after: float | None) -> 
 
 
 def complete_resilient(*, providers_and_models, system, messages, tools, effort,
-                       policy: RetryPolicy | None = None, on_event=None):
+                       policy: RetryPolicy | None = None, on_event=None, on_text=None):
     """Try each (provider, model_spec) in order; retry transient errors per model.
 
     providers_and_models: iterable of (provider, model_spec) to try in order.
     on_event: optional callback(kind, detail) for verbose logging.
+    on_text: optional callback(delta) to stream assistant text as it arrives.
     Returns (completion, used_model_spec).
     Raises the last non-transient error, or the last transient error if every
     candidate is exhausted.
@@ -96,7 +97,8 @@ def complete_resilient(*, providers_and_models, system, messages, tools, effort,
             try:
                 comp = provider.complete(
                     model=spec.id, system=system, messages=messages,
-                    tools=tools, effort=effort, max_out=spec.max_out)
+                    tools=tools, effort=effort, max_out=spec.max_out,
+                    on_text=on_text)
                 return comp, spec
             except Exception as e:
                 last_err = e

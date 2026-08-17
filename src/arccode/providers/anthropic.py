@@ -31,16 +31,20 @@ class AnthropicProvider:
                 self._client = anthropic.Anthropic(api_key=secret)
         return self._client
 
-    def complete(self, *, model, system, messages, tools, effort="medium", max_out=4096):
+    def complete(self, *, model, system, messages, tools, effort="medium", max_out=4096,
+                 on_text=None):
         client = self._client_or_raise()
         model_name = model.split(":", 1)[1] if ":" in model else model
-        resp = client.messages.create(
-            model=model_name,
-            system=system or "You are a helpful assistant.",
-            max_tokens=max_out,
-            tools=[_tool(t) for t in tools],
-            messages=[_msg(m) for m in messages],
-        )
+        params = {
+            "model": model_name,
+            "system": system or "You are a helpful assistant.",
+            "max_tokens": max_out,
+            "tools": [_tool(t) for t in tools],
+            "messages": [_msg(m) for m in messages],
+        }
+        if on_text is not None:
+            return self._complete_stream(client, params, on_text)
+        resp = client.messages.create(**params)
         text, calls = "", []
         for block in resp.content:
             if block.type == "text":
@@ -52,6 +56,32 @@ class AnthropicProvider:
             {"in": resp.usage.input_tokens, "out": resp.usage.output_tokens},
             resp.stop_reason or "stop",
         )
+
+    def _complete_stream(self, client, params, on_text):
+        """Streaming variant: emit text deltas via on_text; assemble tool calls."""
+        text, calls = "", []
+        usage = {"in": 0, "out": 0}
+        stop = "stop"
+        with client.messages.stream(**params) as stream:
+            for event in stream:
+                etype = getattr(event, "type", "")
+                if etype == "content_block_delta":
+                    delta = getattr(event, "delta", None)
+                    if delta is not None and getattr(delta, "type", "") == "text_delta":
+                        text += delta.text
+                        try:
+                            on_text(delta.text)
+                        except Exception:  # noqa: BLE001, S110
+                            pass
+            final = stream.get_final_message()
+        for block in final.content:
+            if block.type == "tool_use":
+                calls.append(ToolCall(block.id, block.name, dict(block.input)))
+        usage = {"in": final.usage.input_tokens, "out": final.usage.output_tokens}
+        stop = final.stop_reason or "stop"
+        # Prefer the fully-assembled text from the final message if present.
+        joined = "".join(b.text for b in final.content if b.type == "text")
+        return Completion(joined or text, calls, usage, stop)
 
 
 def _tool(t: dict) -> dict:

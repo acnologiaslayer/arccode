@@ -12,7 +12,7 @@ class FakeProvider:
     def __init__(self, script):
         self.script = list(script)
 
-    def complete(self, *, model, system, messages, tools, effort="medium", max_out=4096):
+    def complete(self, *, model, system, messages, tools, effort="medium", max_out=4096, on_text=None):
         return self.script.pop(0)
 
 
@@ -66,7 +66,7 @@ def test_app_run_persists_and_resumes(tmp_path, monkeypatch):
     seen = {}
 
     class Capture:
-        def complete(self, *, model, system, messages, tools, effort="medium", max_out=4096):
+        def complete(self, *, model, system, messages, tools, effort="medium", max_out=4096, on_text=None):
             seen["n_in"] = len(messages)
             return Completion("second answer", [], {"in": 3, "out": 1}, "stop")
 

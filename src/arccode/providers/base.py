@@ -42,5 +42,6 @@ class Provider(Protocol):
         tools: list[dict],
         effort: str = "medium",
         max_out: int = 4096,
+        on_text=None,  # optional callback(delta:str) for streamed text
     ) -> Completion:
         ...

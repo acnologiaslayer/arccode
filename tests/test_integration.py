@@ -25,10 +25,15 @@ class FakeProvider:
         self.script = list(script)
         self.calls = []
 
-    def complete(self, *, model, system, messages, tools, effort="medium", max_out=4096):
+    def complete(self, *, model, system, messages, tools, effort="medium", max_out=4096, on_text=None):
         self.calls.append({"model": model, "system": system,
                            "n_messages": len(messages), "tool_names": [t["name"] for t in tools]})
-        return self.script.pop(0)
+        comp = self.script.pop(0)
+        # Emulate token streaming so the loop's on_text path is exercised.
+        if on_text is not None and comp.text:
+            for ch in comp.text:
+                on_text(ch)
+        return comp
 
 
 @pytest.fixture
@@ -77,6 +82,34 @@ def test_unknown_tool_is_reported_not_crashed(patch_provider, tmp_path):
     result = Agent(spec, _ctx(tmp_path)).run("go")
     # the tool-result fed back must contain the error, and loop continues to finish
     assert result == "handled"
+
+
+def test_on_text_streams_deltas_and_matches_final(patch_provider, tmp_path):
+    """When an on_text sink is attached, the loop streams deltas whose join
+    equals the final assistant text."""
+    patch_provider([
+        Completion("streamed reply", [], {"in": 3, "out": 2}, "stop"),
+    ])
+    spec = AgentSpec("t", "s", model="workhorse", tools=["read_file"])
+    ctx = _ctx(tmp_path)
+    chunks = []
+    ctx.on_text = chunks.append
+    result = Agent(spec, ctx).run("hi")
+    assert result == "streamed reply"
+    assert "".join(chunks) == "streamed reply"   # every token delivered, in order
+
+
+def test_on_text_clears_status_before_first_delta(patch_provider, tmp_path):
+    """The runtime blanks the spinner status once real text starts flowing."""
+    patch_provider([Completion("hello", [], {"in": 1, "out": 1}, "stop")])
+    spec = AgentSpec("t", "s", model="workhorse", tools=["read_file"])
+    ctx = _ctx(tmp_path)
+    status_calls = []
+    ctx.on_status = status_calls.append
+    ctx.on_text = lambda d: None
+    Agent(spec, ctx).run("hi")
+    # a blank status is emitted to clear the spinner before text prints
+    assert "" in status_calls
 
 
 def test_tool_exception_is_caught(patch_provider, tmp_path):

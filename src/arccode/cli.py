@@ -254,15 +254,29 @@ def chat(
             console.print(f"[arc.err]unknown command '{line}'[/arc.err] (try /help)")
             continue
 
-        # A real task.
+        # A real task. Stream the reply live when attached to a terminal.
         if not verbose and console.is_terminal:
+            console.print(f"[arc.ok]{agent} ›[/arc.ok] ", end="")
+            streamed = {"any": False}
+
+            def _emit(delta, _s=streamed):
+                _s["any"] = True
+                console.print(delta, end="", markup=False, highlight=False)
+
             with console.status("[arc.muted]thinking...[/arc.muted]", spinner="dots") as st:
-                a.ctx.on_status = lambda t: st.update(f"[arc.muted]{t}[/arc.muted]")
+                a.ctx.on_status = lambda t: st.update(f"[arc.muted]{t}[/arc.muted]") if t \
+                    else st.stop()
+                a.ctx.on_text = _emit
                 result = a.run(line, agent=agent, model=model)
+            a.ctx.on_text = None
+            if streamed["any"]:
+                console.print()  # newline after streamed text
+            else:
+                console.print(result)
         else:
             result = a.run(line, agent=agent, model=model)
+            console.print(f"[arc.ok]{agent} ›[/arc.ok] {result}")
         turns += 1
-        console.print(f"[arc.ok]{agent} ›[/arc.ok] {result}")
         u = a.usage()
         c = f"${u['usd']:.4f}" if u["usd"] else "free"
         console.print(f"[arc.muted]· {u['in'] + u['out']} tokens · {c} total[/arc.muted]",

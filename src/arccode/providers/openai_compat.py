@@ -71,7 +71,8 @@ class OpenAICompatProvider:
                 self._client = openai.OpenAI(api_key=secret, base_url=self.base_url)
         return self._client
 
-    def complete(self, *, model, system, messages, tools, effort="medium", max_out=4096):
+    def complete(self, *, model, system, messages, tools, effort="medium", max_out=4096,
+                 on_text=None):
         client = self._client_or_raise()
         model_name = model.split(":", 1)[1] if ":" in model else model
         payload = [{"role": "system", "content": system or "You are a helpful assistant."}]
@@ -79,6 +80,8 @@ class OpenAICompatProvider:
         kwargs = {}
         if tools:
             kwargs["tools"] = [_tool(t) for t in tools]
+        if on_text is not None:
+            return self._complete_stream(client, model_name, payload, max_out, on_text, kwargs)
         # Newer OpenAI models reject `max_tokens` and require
         # `max_completion_tokens`. Try the classic param, then fall back.
         try:
@@ -107,6 +110,68 @@ class OpenAICompatProvider:
              "out": getattr(usage, "completion_tokens", 0)},
             choice.finish_reason or "stop",
         )
+
+    def _complete_stream(self, client, model_name, payload, max_out, on_text, kwargs):
+        """Streaming variant: emits text deltas via on_text(delta) as they arrive.
+
+        Accumulates any tool-call deltas so the agent loop still works with tools.
+        """
+        opts = {"stream": True, "stream_options": {"include_usage": True}, **kwargs}
+
+        def _create(token_kw):
+            return client.chat.completions.create(
+                model=model_name, messages=payload, **token_kw, **opts)
+
+        try:
+            stream = _create({"max_tokens": max_out})
+        except Exception as e:
+            if _wants_completion_tokens(e):
+                stream = _create({"max_completion_tokens": max_out})
+            elif _no_stream_options(e):
+                # Some OpenAI-compatible servers reject stream_options; drop it.
+                opts.pop("stream_options", None)
+                stream = _create({"max_tokens": max_out})
+            else:
+                raise
+
+        text = ""
+        finish = "stop"
+        usage = {"in": 0, "out": 0}
+        tool_frags: dict[int, dict] = {}
+        for chunk in stream:
+            u = getattr(chunk, "usage", None)
+            if u:
+                usage = {"in": getattr(u, "prompt_tokens", 0),
+                         "out": getattr(u, "completion_tokens", 0)}
+            if not chunk.choices:
+                continue
+            choice = chunk.choices[0]
+            if choice.finish_reason:
+                finish = choice.finish_reason
+            delta = choice.delta
+            if getattr(delta, "content", None):
+                text += delta.content
+                try:
+                    on_text(delta.content)
+                except Exception:  # noqa: BLE001, S110
+                    pass
+            for tc in (getattr(delta, "tool_calls", None) or []):
+                frag = tool_frags.setdefault(tc.index, {"id": None, "name": "", "args": ""})
+                if tc.id:
+                    frag["id"] = tc.id
+                if tc.function and tc.function.name:
+                    frag["name"] = tc.function.name
+                if tc.function and tc.function.arguments:
+                    frag["args"] += tc.function.arguments
+
+        calls = []
+        for _, frag in sorted(tool_frags.items()):
+            try:
+                args = json.loads(frag["args"] or "{}")
+            except json.JSONDecodeError:
+                args = {}
+            calls.append(ToolCall(frag["id"] or "", frag["name"], args))
+        return Completion(text, calls, usage, finish)
 
 
 def _service_endpoint(provider: str):
@@ -141,6 +206,12 @@ def _wants_completion_tokens(err: Exception) -> bool:
     return "max_completion_tokens" in msg or (
         "max_tokens" in msg and "unsupported" in msg) or (
         "max_tokens" in msg and "not supported" in msg)
+
+
+def _no_stream_options(err: Exception) -> bool:
+    """True if the server rejects the stream_options param."""
+    msg = str(err).lower()
+    return "stream_options" in msg
 
 
 def _tool(t: dict) -> dict:

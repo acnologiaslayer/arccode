@@ -75,13 +75,15 @@ def _friendly_tool(call) -> str:
 
 class Agent:
     def __init__(self, spec: AgentSpec, ctx, verbose: bool = False,
-                 history: list[Message] | None = None, on_status=None):
+                 history: list[Message] | None = None, on_status=None, on_text=None):
         self.spec = spec
         self.ctx = ctx
         self.verbose = verbose
         self.messages: list[Message] = list(history) if history else []
         # on_status(text): optional callback for live step feedback (spinner).
         self.on_status = on_status or getattr(ctx, "on_status", None)
+        # on_text(delta): optional callback to stream assistant text live.
+        self.on_text = on_text or getattr(ctx, "on_text", None)
 
     def _status(self, text: str) -> None:
         if self.on_status:
@@ -135,12 +137,26 @@ class Agent:
 
         for step in range(max_steps):
             self._status(f"thinking with {MODELS_BY_ID.get(active_id).key if MODELS_BY_ID.get(active_id) else active_id}...")
+            # Stream assistant text live when a sink is attached. Wrap it so the
+            # first delta clears the spinner status line before text prints.
+            stream_cb = None
+            if self.on_text:
+                started = {"v": False}
+
+                def stream_cb(delta, _started=started):
+                    if not _started["v"]:
+                        _started["v"] = True
+                        self._status("")
+                    try:
+                        self.on_text(delta)
+                    except Exception:  # noqa: BLE001, S110
+                        pass
             try:
                 comp, used = complete_resilient(
                     providers_and_models=candidates,
                     system=self._system(), messages=self.messages,
                     tools=schemas, effort=self.spec.effort,
-                    policy=RetryPolicy(), on_event=_log)
+                    policy=RetryPolicy(), on_event=_log, on_text=stream_cb)
             except Exception as e:  # noqa: BLE001
                 msg = str(e).splitlines()[0] if str(e) else e.__class__.__name__
                 if self.verbose:

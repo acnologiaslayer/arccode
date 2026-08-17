@@ -194,6 +194,9 @@ arccode chat -a architect -v
 ```
 
 Type `/exit` (or `/quit`) to leave. Every message routes and runs like `run`.
+Replies **stream in live** (token by token) when your terminal supports it, and
+each turn shows running token/cost totals. In-chat commands: `/agent`, `/model`,
+`/agents`, `/models`, `/cost`, `/clear`, `/help`.
 
 ---
 
