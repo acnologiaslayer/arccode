@@ -160,6 +160,8 @@ arccode run "<task>" [options]
 | `--cwd <dir>` | Working directory for file/shell tools. |
 | `--no-mcp` | Skip connecting MCP servers this run. |
 | `--max-steps <n>` | Cap the tool loop (default 40). |
+| `-q, --quiet` | Print only the final result (no summary/spinner). Good for pipes. |
+| `--json` | Emit a JSON object: `result`, `agent`, `files_changed`, `usage`, `session`. |
 
 Examples:
 
@@ -172,6 +174,10 @@ arccode run "Why does the build fail?" -a debugger -v
 
 # keep it read-only and cheap
 arccode run "Summarize the architecture" -a researcher
+
+# scripting: capture just the answer, or parse structured output
+answer=$(arccode run "Return the current version string" -q)
+arccode run "List the top 3 risks" --json | jq -r '.result'
 ```
 
 Each run prints token counts and estimated USD at the end.

@@ -85,6 +85,8 @@ def run(
     session_id: str = typer.Option(None, "--session", "-s",
         help="Persist to / resume this session id ('new' to start one)."),
     max_steps: int = typer.Option(40, "--max-steps"),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Print only the result (no summary/spinner)."),
+    as_json: bool = typer.Option(False, "--json", help="Emit a JSON object with result, files, and usage."),
 ):
     """Run a single task with an agent (auto-routed model unless -m given)."""
     if model:
@@ -101,7 +103,6 @@ def run(
         from .session import Session
         if session_id == "new":
             sess = Session.create(agent)
-            console.print(f"[dim]session {sess.id}[/dim]")
         else:
             try:
                 sess = Session.load(session_id)
@@ -109,20 +110,41 @@ def run(
                 sess = Session.create(agent)
                 sess.id = session_id
     # Live step feedback: a spinner that updates as the agent works (unless
-    # verbose, which prints full detail, or output is piped).
-    use_spinner = not verbose and console.is_terminal
+    # verbose/quiet/json, or output is piped).
+    use_spinner = not verbose and not quiet and not as_json and console.is_terminal
+    if session_id == "new" and not (quiet or as_json):
+        console.print(f"[dim]session {sess.id}[/dim]")
     if use_spinner:
         with console.status("[arc.muted]starting...[/arc.muted]", spinner="dots") as status:
             a.ctx.on_status = lambda text: status.update(f"[arc.muted]{text}[/arc.muted]")
             result = a.run(task, agent=agent, model=model, max_steps=max_steps, session=sess)
     else:
         result = a.run(task, agent=agent, model=model, max_steps=max_steps, session=sess)
-    console.print(result)
+
+    u = a.usage()
+    touched = sorted(a.ctx.touched)
+
+    if as_json:
+        import json as _json
+        out = {
+            "result": result,
+            "agent": agent,
+            "files_changed": touched,
+            "usage": {"in": u["in"], "out": u["out"], "usd": round(u["usd"], 6)},
+        }
+        if sess:
+            out["session"] = sess.id
+        print(_json.dumps(out, indent=2))
+        return
+
+    # Plain result (quiet: only this).
+    print(result)
+    if quiet:
+        return
+
     if sess:
         console.print(f"[dim]session saved: {sess.id} ({len(sess.messages)} turns)[/dim]")
     # Friendly run summary: what changed + cost.
-    u = a.usage()
-    touched = sorted(a.ctx.touched)
     parts = []
     if touched:
         names = ", ".join(t.split("/")[-1] for t in touched[:4])
