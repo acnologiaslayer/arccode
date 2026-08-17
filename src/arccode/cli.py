@@ -38,6 +38,7 @@ def _root(ctx: typer.Context):
     if ctx.invoked_subcommand is not None:
         return
     from rich.panel import Panel
+
     from .services import detect
     try:
         det = detect()
@@ -97,12 +98,29 @@ def run(
             except FileNotFoundError:
                 sess = Session.create(agent)
                 sess.id = session_id
-    result = a.run(task, agent=agent, model=model, max_steps=max_steps, session=sess)
+    # Live step feedback: a spinner that updates as the agent works (unless
+    # verbose, which prints full detail, or output is piped).
+    use_spinner = not verbose and console.is_terminal
+    if use_spinner:
+        with console.status("[arc.muted]starting...[/arc.muted]", spinner="dots") as status:
+            a.ctx.on_status = lambda text: status.update(f"[arc.muted]{text}[/arc.muted]")
+            result = a.run(task, agent=agent, model=model, max_steps=max_steps, session=sess)
+    else:
+        result = a.run(task, agent=agent, model=model, max_steps=max_steps, session=sess)
     console.print(result)
     if sess:
         console.print(f"[dim]session saved: {sess.id} ({len(sess.messages)} turns)[/dim]")
+    # Friendly run summary: what changed + cost.
     u = a.usage()
-    console.print(f"[dim]tokens in={u['in']} out={u['out']} cost=${u['usd']:.4f}[/dim]",
+    touched = sorted(a.ctx.touched)
+    parts = []
+    if touched:
+        names = ", ".join(t.split("/")[-1] for t in touched[:4])
+        more = f" +{len(touched) - 4} more" if len(touched) > 4 else ""
+        parts.append(f"changed {len(touched)} file(s): {names}{more}")
+    cost = f"${u['usd']:.4f}" if u["usd"] else "free"
+    parts.append(f"{u['in'] + u['out']} tokens · {cost}")
+    console.print(f"[arc.ok]✓ done[/arc.ok] [arc.muted]· {' · '.join(parts)}[/arc.muted]",
                   highlight=False)
 
 

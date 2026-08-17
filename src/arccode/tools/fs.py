@@ -36,6 +36,7 @@ def write_file(args, ctx):
         p = pathlib.Path(ctx.cwd) / p
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(args["content"])
+    ctx.touched.add(str(p))
     return f"wrote {len(args['content'])} bytes to {p}"
 
 
@@ -56,6 +57,7 @@ def edit_file(args, ctx):
         return f"ERROR: old string matches {count} times; set replace_all or add context"
     text = text.replace(args["old"], args["new"])
     p.write_text(text)
+    ctx.touched.add(str(p))
     return f"edited {p} ({count} replacement(s))"
 
 
@@ -78,6 +80,7 @@ def multi_edit(args, ctx):
             return f"ERROR: edit #{i + 1} matches multiple times; aborted"
         text = text.replace(e["old"], e["new"])
     p.write_text(text)
+    ctx.touched.add(str(p))
     return f"applied {len(args['edits'])} edits to {p}"
 
 

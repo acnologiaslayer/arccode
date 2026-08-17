@@ -29,13 +29,45 @@ def _fallback_models(primary):
     return ordered
 
 
+def _friendly_tool(call) -> str:
+    """Turn a tool call into a short human-readable status line."""
+    a = call.args or {}
+    name = call.name
+    path = a.get("path") or a.get("file") or ""
+    short = path.split("/")[-1] if path else ""
+    mapping = {
+        "read_file": f"reading {short}" if short else "reading a file",
+        "write_file": f"writing {short}" if short else "writing a file",
+        "edit_file": f"editing {short}" if short else "editing a file",
+        "multi_edit": f"editing {short}" if short else "editing a file",
+        "list_dir": "listing files",
+        "glob": "searching for files",
+        "grep": f"searching for '{a.get('pattern', '')}'",
+        "bash": f"running: {str(a.get('command', ''))[:40]}",
+        "web_fetch": "fetching a web page",
+        "web_search": f"searching the web for '{a.get('query', '')}'",
+        "spawn_agent": f"delegating to {a.get('agent', 'an agent')}",
+        "load_skill": f"loading skill {a.get('name', '')}",
+    }
+    return mapping.get(name, f"running {name}")
+
+
 class Agent:
     def __init__(self, spec: AgentSpec, ctx, verbose: bool = False,
-                 history: list[Message] | None = None):
+                 history: list[Message] | None = None, on_status=None):
         self.spec = spec
         self.ctx = ctx
         self.verbose = verbose
         self.messages: list[Message] = list(history) if history else []
+        # on_status(text): optional callback for live step feedback (spinner).
+        self.on_status = on_status or getattr(ctx, "on_status", None)
+
+    def _status(self, text: str) -> None:
+        if self.on_status:
+            try:
+                self.on_status(text)
+            except Exception:  # noqa: BLE001
+                pass
 
     def _system(self) -> str:
         parts = [self.spec.system]
@@ -72,11 +104,16 @@ class Agent:
         active_id = model_id
 
         def _log(kind, detail):
+            if kind == "retry":
+                self._status(f"rate limited, retrying {decision.model.key}...")
+            elif kind == "fallback":
+                self._status("trying a backup model...")
             if self.verbose:
                 color = "yellow" if kind == "retry" else "magenta"
                 console.print(f"[{color}]{detail}[/{color}]")
 
         for step in range(max_steps):
+            self._status(f"thinking with {MODELS_BY_ID.get(active_id).key if MODELS_BY_ID.get(active_id) else active_id}...")
             try:
                 comp, used = complete_resilient(
                     providers_and_models=candidates,
@@ -93,6 +130,7 @@ class Agent:
             if used.id != active_id:
                 active_id = used.id
                 candidates = [(get_provider(s.id), s) for s in _fallback_models(used)]
+                self._status(f"switched to {used.key}")
                 if self.verbose:
                     console.print(f"[magenta]failed over to {used.key} ({used.id})[/magenta]")
 
@@ -115,6 +153,7 @@ class Agent:
         tool = REGISTRY.get(call.name)
         if not tool:
             return f"ERROR: unknown tool {call.name}"
+        self._status(_friendly_tool(call))
         if self.verbose:
             console.print(f"[dim]  -> {call.name}({call.args})[/dim]")
         if self.ctx.hooks:

@@ -46,6 +46,8 @@ class Ctx:
     skills: object = None  # SkillRegistry
     memory: object = None  # MemoryStore
     hooks: object = None  # HookManager
+    on_status: object = None  # optional callback(text) for live step feedback
+    touched: set = field(default_factory=set)  # files created/edited this run
     todos: list = field(default_factory=list)
     yes: bool = False  # auto-confirm danger tools (non-interactive)
     usage: dict = field(default_factory=lambda: {"in": 0, "out": 0, "usd": 0.0})
@@ -61,7 +63,9 @@ class Ctx:
         return ans.strip().lower() in ("y", "yes")
 
     def child(self) -> Ctx:
-        c = Ctx(self.cwd, self.agents_dir, self.skills_dir, self.orchestrator,
-                self.skills, self.memory, self.hooks, list(self.todos), self.yes,
-                {"in": 0, "out": 0, "usd": 0.0}, self.depth + 1)
-        return c
+        return Ctx(
+            cwd=self.cwd, agents_dir=self.agents_dir, skills_dir=self.skills_dir,
+            orchestrator=self.orchestrator, skills=self.skills, memory=self.memory,
+            hooks=self.hooks, on_status=self.on_status, touched=self.touched,
+            todos=list(self.todos),
+            yes=self.yes, usage={"in": 0, "out": 0, "usd": 0.0}, depth=self.depth + 1)
