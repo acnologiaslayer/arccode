@@ -372,8 +372,9 @@ def doctor():
         lines.append((ok, f"{len(conn)} AI service(s) connected: {', '.join(conn)}"))
     else:
         lines.append((bad, "no AI services connected"))
-        lines.append((warn, "  fix: run `ollama serve`, or set a key "
-                            "(e.g. export GROQ_API_KEY=... / OPENAI_API_KEY=...)"))
+        _fix = ("  fix: run `ollama serve`, or set a key "
+                "(e.g. export GROQ_API_KEY=... / OPENAI_API_KEY=...)")
+        lines.append((warn, _fix))
 
     # provider SDKs importable
     for mod, label in (("openai", "openai SDK"), ("anthropic", "anthropic SDK")):
