@@ -143,20 +143,108 @@ def chat(
     cwd: str = typer.Option(".", "--cwd"),
     no_mcp: bool = typer.Option(False, "--no-mcp"),
 ):
-    """Interactive REPL. Type /exit to quit."""
+    """Interactive session. Type a task, or /help for in-chat commands."""
+    from rich.panel import Panel
     a = _app(cwd, yes, verbose, no_mcp)
-    console.print(f"[bold]arccode[/bold] chat :: agent={agent}. /exit to quit.")
+
+    # Session-scoped running cost.
+    turns = 0
+
+    def _header():
+        conn = []
+        try:
+            from .services import detect
+            conn = [n for n, d in detect().items() if d.connected]
+        except Exception:  # noqa: BLE001
+            pass
+        mtxt = model or "auto"
+        console.print(Panel(
+            f"[arc.accent2]arccode chat[/arc.accent2] [arc.muted]v{__version__}[/arc.muted]\n"
+            f"agent [arc.accent2]{agent}[/arc.accent2] · model [arc.accent2]{mtxt}[/arc.accent2]"
+            f" · services: {', '.join(conn) or 'none'}\n"
+            "[arc.muted]/help for commands · /exit to quit[/arc.muted]",
+            border_style="red", padding=(0, 2)))
+
+    def _help():
+        console.print(
+            "[bold]commands:[/bold]\n"
+            "  /agent <name>   switch agent\n"
+            "  /model <key>    force a model ('auto' to clear)\n"
+            "  /agents         list agents\n"
+            "  /models         list models\n"
+            "  /cost           show session cost so far\n"
+            "  /clear          reset the screen\n"
+            "  /exit           quit")
+
+    _header()
     while True:
         try:
-            line = console.input("[arc.accent]you>[/arc.accent] ").strip()
+            line = console.input("[arc.accent]you ›[/arc.accent] ").strip()
         except (EOFError, KeyboardInterrupt):
-            break
-        if line in ("/exit", "/quit"):
+            console.print("\n[arc.muted]bye[/arc.muted]")
             break
         if not line:
             continue
-        result = a.run(line, agent=agent, model=model)
-        console.print(f"[arc.ok]{agent}>[/arc.ok] {result}")
+        if line in ("/exit", "/quit"):
+            console.print("[arc.muted]bye[/arc.muted]")
+            break
+        if line == "/help":
+            _help(); continue
+        if line == "/clear":
+            console.clear(); _header(); continue
+        if line == "/cost":
+            u = a.usage()
+            c = f"${u['usd']:.4f}" if u["usd"] else "free"
+            console.print(f"[arc.muted]session: {turns} turn(s) · "
+                          f"{u['in'] + u['out']} tokens · {c}[/arc.muted]")
+            continue
+        if line == "/agents":
+            for name in sorted(a.orchestrator.registry):
+                console.print(f"  {name}")
+            continue
+        if line == "/models":
+            from .config import MODELS
+            for k in list(MODELS)[:20]:
+                console.print(f"  {k}")
+            continue
+        if line.startswith("/agent "):
+            new = line.split(maxsplit=1)[1].strip()
+            if new in a.orchestrator.registry:
+                agent = new
+                console.print(f"[arc.ok]switched to agent {agent}[/arc.ok]")
+            else:
+                console.print(f"[arc.err]no such agent '{new}'[/arc.err] (try /agents)")
+            continue
+        if line.startswith("/model "):
+            new = line.split(maxsplit=1)[1].strip()
+            if new in ("auto", "none", ""):
+                model = None
+                console.print("[arc.ok]model set to auto[/arc.ok]")
+            else:
+                from .config import resolve as _rm
+                try:
+                    _rm(new); model = new
+                    console.print(f"[arc.ok]model set to {model}[/arc.ok]")
+                except KeyError:
+                    console.print(f"[arc.err]unknown model '{new}'[/arc.err] (try /models)")
+            continue
+        if line.startswith("/"):
+            console.print(f"[arc.err]unknown command '{line}'[/arc.err] (try /help)")
+            continue
+
+        # A real task.
+        if not verbose and console.is_terminal:
+            with console.status("[arc.muted]thinking...[/arc.muted]", spinner="dots") as st:
+                a.ctx.on_status = lambda t: st.update(f"[arc.muted]{t}[/arc.muted]")
+                result = a.run(line, agent=agent, model=model)
+        else:
+            result = a.run(line, agent=agent, model=model)
+        turns += 1
+        console.print(f"[arc.ok]{agent} ›[/arc.ok] {result}")
+        u = a.usage()
+        c = f"${u['usd']:.4f}" if u["usd"] else "free"
+        console.print(f"[arc.muted]· {u['in'] + u['out']} tokens · {c} total[/arc.muted]",
+                      highlight=False)
 
 
 @app.command()
