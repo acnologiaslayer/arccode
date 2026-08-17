@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.3.0
+
+Live streaming + scripting.
+
+### Added
+- **Live response streaming**: `chat` and `run` now stream the assistant's reply
+  token by token on a terminal. Providers (OpenAI-compatible and Anthropic) grew
+  an `on_text` streaming path that still assembles tool calls, threaded through
+  the resilient completion layer and the agent loop. The spinner clears on the
+  first token.
+- **Scripting modes for `run`**: `--quiet/-q` prints only the final result
+  (pipe-friendly) and `--json` emits `{result, agent, files_changed, usage,
+  session}` for CI and tooling.
+- **Richer interactive chat**: session header panel (agent, model, connected
+  services), running token/cost totals, and in-chat slash commands (`/agent`,
+  `/model`, `/agents`, `/models`, `/cost`, `/clear`, `/help`).
+
 ## 0.2.0
 
 Product polish + robustness.

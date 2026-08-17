@@ -180,7 +180,9 @@ answer=$(arccode run "Return the current version string" -q)
 arccode run "List the top 3 risks" --json | jq -r '.result'
 ```
 
-Each run prints token counts and estimated USD at the end.
+Each run prints token counts and estimated USD at the end. On a terminal the
+reply also **streams in live** as it is generated (disabled by `-q`, `--json`,
+or when output is piped).
 
 ---
 

@@ -114,10 +114,19 @@ def run(
     use_spinner = not verbose and not quiet and not as_json and console.is_terminal
     if session_id == "new" and not (quiet or as_json):
         console.print(f"[dim]session {sess.id}[/dim]")
+    streamed = {"any": False}
     if use_spinner:
+        def _emit(delta, _s=streamed):
+            _s["any"] = True
+            console.print(delta, end="", markup=False, highlight=False)
         with console.status("[arc.muted]starting...[/arc.muted]", spinner="dots") as status:
-            a.ctx.on_status = lambda text: status.update(f"[arc.muted]{text}[/arc.muted]")
+            a.ctx.on_status = lambda text: status.update(f"[arc.muted]{text}[/arc.muted]") \
+                if text else status.stop()
+            a.ctx.on_text = _emit
             result = a.run(task, agent=agent, model=model, max_steps=max_steps, session=sess)
+        a.ctx.on_text = None
+        if streamed["any"]:
+            console.print()  # newline after streamed text
     else:
         result = a.run(task, agent=agent, model=model, max_steps=max_steps, session=sess)
 
@@ -137,8 +146,9 @@ def run(
         print(_json.dumps(out, indent=2))
         return
 
-    # Plain result (quiet: only this).
-    print(result)
+    # Plain result. If we already streamed it live, don't print it again.
+    if not streamed["any"]:
+        print(result)
     if quiet:
         return
 
