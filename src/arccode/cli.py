@@ -77,6 +77,23 @@ def _complete_models(incomplete: str):
         pass
 
 
+def _complete_profiles(incomplete: str):
+    """Complete saved profile names."""
+    try:
+        from .profiles import ProfileStore
+        store = ProfileStore.load()
+        for name, p in sorted(store.profiles.items()):
+            if name.startswith(incomplete):
+                bits = []
+                if p.agent:
+                    bits.append(p.agent)
+                if p.model:
+                    bits.append(p.model)
+                yield (name, " ".join(bits))
+    except Exception:  # noqa: BLE001, S110
+        pass
+
+
 @app.callback()
 def _root(ctx: typer.Context):
     """Show a friendly welcome + status when run with no command."""
@@ -116,24 +133,73 @@ def _app(cwd: str, yes: bool, verbose: bool, no_mcp: bool) -> App:
     return App(cwd=cwd, yes=yes, verbose=verbose, enable_mcp=not no_mcp)
 
 
+def _activate_profile(name: str | None):
+    """Resolve a profile (explicit name overrides the active one), apply its env,
+    and refresh the model catalog. Returns the Profile or None.
+
+    Errors are surfaced (unknown explicit profile aborts); a missing active
+    profile is simply ignored so normal runs are unaffected.
+    """
+    from . import config as _config
+    from .profiles import ProfileStore, apply_env, resolve_active
+
+    prof = None
+    if name:
+        prof = ProfileStore.load().get(name)
+        if prof is None:
+            console.print(f"[arc.err]Unknown profile '{name}'.[/arc.err] "
+                          "See [arc.accent2]arccode profile list[/arc.accent2].")
+            raise typer.Exit(1)
+    else:
+        prof = resolve_active()
+    if prof:
+        apply_env(prof)
+        _config.reload()  # ARCCODE_CONFIG / keys from the profile take effect
+    return prof
+
+
+def _merge(profile, *, agent, model, cwd, yes, max_steps):
+    """Layer a profile under explicit CLI values (the command line always wins).
+
+    Sentinels: agent/model/cwd/max_steps == None means "not given on CLI"; yes
+    is a bool where True means the user passed -y (profile can still enable it).
+    """
+    p = profile
+    agent = agent or (p.agent if p and p.agent else None) or "coordinator"
+    model = model or (p.model if p and p.model else None)
+    cwd = cwd or (p.cwd if p and p.cwd else None) or "."
+    yes = yes or bool(p.yes) if p else yes
+    if max_steps is None:
+        max_steps = (p.max_steps if p and p.max_steps else None) or 40
+    return agent, model, cwd, yes, max_steps
+
+
 @app.command()
 def run(
     task: str = typer.Argument(..., help="The task/prompt to run."),
-    agent: str = typer.Option("coordinator", "--agent", "-a", help="Agent to use.",
+    agent: str = typer.Option(None, "--agent", "-a", help="Agent to use (default coordinator).",
         autocompletion=_complete_agents),
     model: str = typer.Option(None, "--model", "-m", help="Force a model (catalog key or id).",
         autocompletion=_complete_models),
+    profile: str = typer.Option(None, "--profile", "-p",
+        help="Use a named profile's defaults (overrides the active one).",
+        autocompletion=_complete_profiles),
     yes: bool = typer.Option(False, "--yes", "-y", help="Auto-approve danger tools."),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Show routing + tool calls."),
-    cwd: str = typer.Option(".", "--cwd", help="Working directory."),
+    cwd: str = typer.Option(None, "--cwd", help="Working directory."),
     no_mcp: bool = typer.Option(False, "--no-mcp", help="Disable MCP servers."),
     session_id: str = typer.Option(None, "--session", "-s",
         help="Persist to / resume this session id ('new' to start one)."),
-    max_steps: int = typer.Option(40, "--max-steps"),
+    max_steps: int = typer.Option(None, "--max-steps"),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Print only the result (no summary/spinner)."),
     as_json: bool = typer.Option(False, "--json", help="Emit a JSON object with result, files, and usage."),
+    dry_run: bool = typer.Option(False, "--dry-run",
+        help="Plan only: show routing, agent, model, tools, and cost. No LLM call, no writes."),
 ):
     """Run a single task with an agent (auto-routed model unless -m given)."""
+    prof = _activate_profile(profile)
+    agent, model, cwd, yes, max_steps = _merge(
+        prof, agent=agent, model=model, cwd=cwd, yes=yes, max_steps=max_steps)
     if model:
         from .config import resolve as _resolve_model
         try:
@@ -142,6 +208,10 @@ def run(
             console.print(f"[arc.err]Unknown model '{model}'.[/arc.err] "
                           "See available models with [arc.accent2]arccode models[/arc.accent2].")
             raise typer.Exit(1)
+    if dry_run:
+        _dry_run(task, agent=agent, model=model, cwd=cwd, no_mcp=no_mcp,
+                 profile=prof, as_json=as_json)
+        return
     a = _app(cwd, yes, verbose, no_mcp)
     sess = None
     if session_id:
@@ -211,19 +281,110 @@ def run(
                   highlight=False)
 
 
+def _estimate_cost(spec, in_tokens: int, out_tokens: int) -> float:
+    return (in_tokens / 1_000_000) * spec.in_cost + (out_tokens / 1_000_000) * spec.out_cost
+
+
+def _dry_run(task, *, agent, model, cwd, no_mcp, profile, as_json):
+    """Show the execution plan without calling any model or touching the disk.
+
+    Resolves the same routing decision the real run would, plus the agent's tool
+    set and a rough cost estimate, so users can preview and price a task safely.
+    """
+    from .router import _usable_provider, route
+    from .tools import DEFAULT_TOOLS
+
+    app_obj = App(cwd=cwd or ".", enable_mcp=False)
+    spec = app_obj.orchestrator.get(agent)
+    if not spec:
+        console.print(f"[arc.err]Unknown agent '{agent}'.[/arc.err] "
+                      "See [arc.accent2]arccode agents[/arc.accent2].")
+        raise typer.Exit(1)
+
+    pinned = model or spec.model
+    decision = route(task, force=pinned)
+    # Mirror the runtime's fallback: if a pinned model's provider is unusable,
+    # auto-routing would pick an alternative.
+    fell_back = False
+    if pinned and not _usable_provider(decision.model.provider):
+        alt = route(task, force=None)
+        if _usable_provider(alt.model.provider):
+            decision, fell_back = alt, True
+
+    m = decision.model
+    usable = _usable_provider(m.provider)
+    tool_names = list(spec.tools or DEFAULT_TOOLS)
+    # Rough estimate: prompt+system+task in, a modest reply out.
+    est_in = max(200, len(task) // 3 + 400)
+    est_out = 500
+    est = _estimate_cost(m, est_in, est_out)
+
+    if as_json:
+        import json as _json
+        print(_json.dumps({
+            "dry_run": True,
+            "task": task,
+            "profile": profile.name if profile else None,
+            "agent": agent,
+            "model": {"key": m.key, "id": m.id, "provider": m.provider,
+                      "tier": m.tier, "usable_now": usable},
+            "routing": {"intent": decision.intent, "complexity": decision.complexity,
+                        "forced": bool(pinned), "fell_back": fell_back,
+                        "reason": decision.reason},
+            "tools": tool_names,
+            "cwd": cwd or ".",
+            "mcp": (not no_mcp),
+            "cost_estimate_usd": round(est, 6),
+            "cost_basis": {"in_tokens": est_in, "out_tokens": est_out,
+                           "in_per_m": m.in_cost, "out_per_m": m.out_cost},
+        }, indent=2))
+        return
+
+    table = _table("dry run - execution plan")
+    table.add_column("field", style="arc.accent")
+    table.add_column("value")
+    if profile:
+        table.add_row("profile", profile.name)
+    table.add_row("task", (task[:70] + "...") if len(task) > 70 else task)
+    table.add_row("agent", agent)
+    model_line = f"{m.key}  [arc.muted]({m.id}, {m.tier})[/arc.muted]"
+    if not usable:
+        model_line += "  [arc.warn]provider not usable now[/arc.warn]"
+    table.add_row("model", model_line)
+    route_line = f"intent={decision.intent} complexity={decision.complexity}"
+    if pinned:
+        route_line = "forced" + ("  [arc.warn](pinned unusable -> fell back)[/arc.warn]"
+                                 if fell_back else "")
+    table.add_row("routing", route_line)
+    table.add_row("tools", ", ".join(tool_names) or "(none)")
+    table.add_row("cwd", cwd or ".")
+    table.add_row("mcp", "on" if not no_mcp else "off")
+    cost_txt = "free" if est == 0 else f"~${est:.4f}"
+    table.add_row("est. cost", f"{cost_txt}  [arc.muted]({est_in} in + {est_out} out tok)[/arc.muted]")
+    console.print(table)
+    console.print("[arc.muted]dry run: no model was called and nothing was written. "
+                  "Drop --dry-run to execute.[/arc.muted]")
+
+
 @app.command()
 def chat(
-    agent: str = typer.Option("coordinator", "--agent", "-a",
+    agent: str = typer.Option(None, "--agent", "-a",
         autocompletion=_complete_agents),
     model: str = typer.Option(None, "--model", "-m",
         autocompletion=_complete_models),
+    profile: str = typer.Option(None, "--profile", "-p",
+        help="Use a named profile's defaults (overrides the active one).",
+        autocompletion=_complete_profiles),
     yes: bool = typer.Option(False, "--yes", "-y"),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
-    cwd: str = typer.Option(".", "--cwd"),
+    cwd: str = typer.Option(None, "--cwd"),
     no_mcp: bool = typer.Option(False, "--no-mcp"),
 ):
     """Interactive session. Type a task, or /help for in-chat commands."""
     from rich.panel import Panel
+    prof = _activate_profile(profile)
+    agent, model, cwd, yes, _ms = _merge(
+        prof, agent=agent, model=model, cwd=cwd, yes=yes, max_steps=None)
     a = _app(cwd, yes, verbose, no_mcp)
 
     # Session-scoped running cost.
@@ -411,7 +572,8 @@ def mcp(cwd: str = typer.Option(".", "--cwd")):
 
 @app.command()
 def doctor():
-    """Diagnose your setup: Python, connected services, PATH, and config."""
+    """Diagnose your setup: Python, services, catalog, agents, config, and more."""
+    import pathlib
     import shutil
     import sys as _sys
 
@@ -419,59 +581,154 @@ def doctor():
 
     ok, warn, bad = "[arc.ok]✓[/arc.ok]", "[arc.warn]![/arc.warn]", "[arc.err]✗[/arc.err]"
     lines = []
+    n_warn = n_bad = 0
 
-    # Python version
+    def add(mark, text):
+        nonlocal n_warn, n_bad
+        if mark == warn:
+            n_warn += 1
+        elif mark == bad:
+            n_bad += 1
+        lines.append((mark, text))
+
+    home = pathlib.Path(os.environ.get("ARCCODE_HOME", pathlib.Path.home() / ".arccode"))
+
+    # --- environment -------------------------------------------------------
     v = _sys.version_info
     pyok = v >= (3, 10)
-    lines.append((ok if pyok else bad,
-                  f"Python {v.major}.{v.minor}.{v.micro}" +
-                  ("" if pyok else " (need 3.10+)")))
+    add(ok if pyok else bad,
+        f"Python {v.major}.{v.minor}.{v.micro}" + ("" if pyok else " (need 3.10+)"))
 
-    # arccode on PATH
     on_path = shutil.which("arccode")
-    lines.append((ok if on_path else warn,
-                  f"arccode on PATH: {on_path}" if on_path else
-                  "arccode not on PATH (add ~/.local/bin to PATH)"))
-
-    # Connected services
-    try:
-        det = detect()
-        conn = [n for n, d in det.items() if d.connected]
-    except Exception as e:  # noqa: BLE001
-        conn, det = [], {}
-        lines.append((bad, f"service detection failed: {e}"))
-    if conn:
-        lines.append((ok, f"{len(conn)} AI service(s) connected: {', '.join(conn)}"))
-    else:
-        lines.append((bad, "no AI services connected"))
-        _fix = ("  fix: run `ollama serve`, or set a key "
-                "(e.g. export GROQ_API_KEY=... / OPENAI_API_KEY=...)")
-        lines.append((warn, _fix))
+    add(ok if on_path else warn,
+        f"arccode on PATH: {on_path}" if on_path else
+        "arccode not on PATH (add ~/.local/bin to PATH)")
+    add(ok, f"version {__version__}")
 
     # provider SDKs importable
     for mod, label in (("openai", "openai SDK"), ("anthropic", "anthropic SDK")):
         try:
             __import__(mod)
-            lines.append((ok, f"{label} installed"))
+            add(ok, f"{label} installed")
         except ImportError:
-            lines.append((warn, f"{label} missing (pip install {mod})"))
+            add(warn, f"{label} missing (pip install {mod})")
 
-    # config locations
-    import pathlib
-    home = pathlib.Path(os.environ.get("ARCCODE_HOME", pathlib.Path.home() / ".arccode"))
-    lines.append((ok if home.exists() else warn, f"config dir: {home}"))
+    # --- services + catalog ------------------------------------------------
+    try:
+        det = detect()
+        conn = [n for n, d in det.items() if d.connected]
+    except Exception as e:  # noqa: BLE001
+        conn, det = [], {}
+        add(bad, f"service detection failed: {e}")
+    if conn:
+        add(ok, f"{len(conn)} AI service(s) connected: {', '.join(conn)}")
+    else:
+        add(bad, "no AI services connected")
+        add(warn, "  fix: run `ollama serve`, or set a key "
+                  "(e.g. export GROQ_API_KEY=... / OPENAI_API_KEY=...)")
 
+    try:
+        from .config import MODELS
+        n_models = len(MODELS)
+        add(ok if n_models else warn,
+            f"model catalog: {n_models} model(s)" +
+            ("" if n_models else " (empty)"))
+    except Exception as e:  # noqa: BLE001
+        add(bad, f"catalog load failed: {e}")
+
+    # ARCCODE_CONFIG override, if set, must exist and parse
+    cfg = os.environ.get("ARCCODE_CONFIG")
+    if cfg:
+        cpath = pathlib.Path(cfg).expanduser()
+        if not cpath.exists():
+            add(bad, f"ARCCODE_CONFIG points to missing file: {cfg}")
+        else:
+            try:
+                import yaml
+                yaml.safe_load(cpath.read_text())
+                add(ok, f"ARCCODE_CONFIG valid: {cfg}")
+            except Exception as e:  # noqa: BLE001
+                add(bad, f"ARCCODE_CONFIG invalid YAML: {e}")
+
+    # --- profiles ----------------------------------------------------------
+    try:
+        from .profiles import ProfileStore
+        store = ProfileStore.load()
+        if store.profiles:
+            active = store.active or "(none)"
+            add(ok, f"profiles: {len(store.profiles)} saved, active: {active}")
+        else:
+            add(ok, "profiles: none (optional)")
+    except Exception as e:  # noqa: BLE001
+        add(warn, f"profiles unreadable: {e}")
+
+    # --- agents & skills ---------------------------------------------------
+    try:
+        from .app import App
+        a = App(cwd=".", enable_mcp=False)
+        n_agents = len(a.orchestrator.registry)
+        add(ok if n_agents else warn, f"agents: {n_agents} available")
+        n_skills = 0
+        try:
+            skills_map = getattr(a.skills, "skills", {})
+            n_skills = len(skills_map)
+        except Exception:  # noqa: BLE001
+            n_skills = 0
+        add(ok, f"skills: {n_skills} available")
+    except Exception as e:  # noqa: BLE001
+        add(bad, f"agent registry failed to load: {e}")
+
+    # --- config dir, credentials, MCP, sessions ----------------------------
+    add(ok if home.exists() else warn, f"config dir: {home}")
+
+    cred = home / "credentials.json"
+    if cred.exists():
+        try:
+            mode = oct(cred.stat().st_mode & 0o777)
+            secure = (cred.stat().st_mode & 0o077) == 0
+            add(ok if secure else warn,
+                f"credentials.json present (mode {mode})" +
+                ("" if secure else " - should be 0600 (chmod 600)"))
+        except OSError as e:
+            add(warn, f"credentials.json unreadable: {e}")
+    else:
+        add(ok, "credentials.json: none (using env keys/OAuth as needed)")
+
+    mcp_cfg = home / "mcp.json"
+    if mcp_cfg.exists():
+        try:
+            import json as _json
+            data = _json.loads(mcp_cfg.read_text())
+            n_srv = len((data or {}).get("mcpServers", data) or {})
+            add(ok, f"mcp.json: {n_srv} server(s) configured")
+        except Exception as e:  # noqa: BLE001
+            add(bad, f"mcp.json invalid JSON: {e}")
+    else:
+        add(ok, "mcp.json: none (optional)")
+
+    try:
+        from .session import list_sessions
+        add(ok, f"sessions: {len(list_sessions())} saved")
+    except Exception:  # noqa: BLE001
+        add(ok, "sessions: 0 saved")
+
+    # --- render ------------------------------------------------------------
     table = _table("arccode doctor")
     table.add_column("")
     table.add_column("check")
     for mark, text in lines:
         table.add_row(mark, text)
     console.print(table)
-    if conn:
-        console.print("[arc.ok]Ready to go.[/arc.ok] Try: arccode run \"summarize this project\"")
+
+    if n_bad:
+        console.print(f"[arc.err]{n_bad} problem(s), {n_warn} warning(s).[/arc.err] "
+                      "Fix the ✗ items above, then re-run `arccode doctor`.")
+    elif n_warn:
+        console.print(f"[arc.warn]{n_warn} warning(s), nothing blocking.[/arc.warn] "
+                      "arccode should work; address ! items for the best experience.")
     else:
-        console.print("[arc.warn]Not ready:[/arc.warn] connect a service (see fixes above), "
-                      "then run `arccode providers`.")
+        console.print("[arc.ok]All checks passed. Ready to go.[/arc.ok] "
+                      "Try: arccode run \"summarize this project\"")
 
 
 @app.command()
@@ -528,6 +785,124 @@ def version():
 
 auth_app = typer.Typer(help="Authenticate with providers via OAuth.")
 app.add_typer(auth_app, name="auth")
+
+
+profile_app = typer.Typer(help="Manage config profiles (named run defaults).",
+                          no_args_is_help=True)
+app.add_typer(profile_app, name="profile")
+
+
+@profile_app.command("list")
+def profile_list():
+    """List saved profiles (the active one is marked)."""
+    from .profiles import ProfileStore
+    store = ProfileStore.load()
+    if not store.profiles:
+        console.print("(no profiles) create one with "
+                      "[arc.accent2]arccode profile set <name> ...[/arc.accent2]")
+        return
+    table = _table("profiles")
+    for col in ("", "name", "agent", "model", "yes", "env"):
+        table.add_column(col)
+    for name, p in sorted(store.profiles.items()):
+        mark = "[arc.accent2]●[/arc.accent2]" if name == store.active else ""
+        env = ", ".join(sorted(p.env)) if p.env else ""
+        table.add_row(mark, name, p.agent or "-", p.model or "-",
+                      "yes" if p.yes else "-", env or "-")
+    console.print(table)
+
+
+@profile_app.command("show")
+def profile_show(name: str = typer.Argument(None, autocompletion=_complete_profiles)):
+    """Show one profile (or the active one if no name is given)."""
+    import json as _json
+
+    from .profiles import ProfileStore
+    store = ProfileStore.load()
+    p = store.get(name) if name else store.active_profile()
+    if not p:
+        console.print("[arc.err]no such profile[/arc.err]" if name
+                      else "[arc.warn]no active profile[/arc.warn]")
+        raise typer.Exit(1)
+    console.print(f"[arc.accent2]{p.name}[/arc.accent2]"
+                  + (" [arc.muted](active)[/arc.muted]" if p.name == store.active else ""))
+    console.print(_json.dumps(p.to_dict(), indent=2))
+
+
+@profile_app.command("set")
+def profile_set(
+    name: str = typer.Argument(..., help="Profile name to create or update."),
+    agent: str = typer.Option(None, "--agent", "-a", autocompletion=_complete_agents),
+    model: str = typer.Option(None, "--model", "-m", autocompletion=_complete_models),
+    cwd: str = typer.Option(None, "--cwd"),
+    yes: bool = typer.Option(None, "--yes/--no-yes",
+        help="Auto-approve danger tools for this profile."),
+    max_steps: int = typer.Option(None, "--max-steps"),
+    env: list[str] = typer.Option(None, "--env", "-e",  # noqa: B008
+        help="Env var as KEY=VALUE (repeatable). E.g. -e ARCCODE_CONFIG=~/work.yaml"),
+    activate: bool = typer.Option(False, "--activate",
+        help="Also make this the active profile."),
+):
+    """Create or update a profile. Only the flags you pass are changed."""
+    from .profiles import Profile, ProfileStore
+    store = ProfileStore.load()
+    p = store.get(name) or Profile(name=name)
+    if agent is not None:
+        p.agent = agent
+    if model is not None:
+        p.model = model
+    if cwd is not None:
+        p.cwd = cwd
+    if yes is not None:
+        p.yes = yes
+    if max_steps is not None:
+        p.max_steps = max_steps
+    for pair in (env or []):
+        if "=" not in pair:
+            console.print(f"[arc.err]bad --env '{pair}'[/arc.err] (expected KEY=VALUE)")
+            raise typer.Exit(1)
+        k, v = pair.split("=", 1)
+        p.env[k.strip()] = v.strip()
+    store.set(p)
+    if activate:
+        store.use(name)
+    store.save()
+    console.print(f"[arc.ok]✓ saved profile[/arc.ok] [arc.accent2]{name}[/arc.accent2]"
+                  + ("  [arc.muted](active)[/arc.muted]" if store.active == name else ""))
+
+
+@profile_app.command("use")
+def profile_use(name: str = typer.Argument(..., autocompletion=_complete_profiles)):
+    """Make a profile the active default for run/chat."""
+    from .profiles import ProfileStore
+    store = ProfileStore.load()
+    if not store.use(name):
+        console.print(f"[arc.err]Unknown profile '{name}'.[/arc.err]")
+        raise typer.Exit(1)
+    store.save()
+    console.print(f"[arc.ok]✓ active profile:[/arc.ok] [arc.accent2]{name}[/arc.accent2]")
+
+
+@profile_app.command("clear")
+def profile_clear():
+    """Clear the active profile (run/chat use built-in defaults)."""
+    from .profiles import ProfileStore
+    store = ProfileStore.load()
+    store.active = None
+    store.save()
+    console.print("[arc.ok]✓ no active profile[/arc.ok]")
+
+
+@profile_app.command("delete")
+def profile_delete(name: str = typer.Argument(..., autocompletion=_complete_profiles)):
+    """Delete a profile."""
+    from .profiles import ProfileStore
+    store = ProfileStore.load()
+    if not store.delete(name):
+        console.print(f"[arc.err]Unknown profile '{name}'.[/arc.err]")
+        raise typer.Exit(1)
+    store.save()
+    console.print(f"[arc.ok]✓ deleted[/arc.ok] {name}")
 
 
 @app.command()

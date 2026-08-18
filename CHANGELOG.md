@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.5.0
+
+Profiles, dry-run planning, and a deeper doctor.
+
+### Added
+- **Config profiles**: named bundles of run defaults (agent, model, cwd, yes,
+  max-steps, env). `arccode profile set/list/show/use/clear/delete`, an active
+  pointer, and `-p/--profile` on `run`/`chat`. Precedence is explicit CLI flag →
+  `-p` → active profile → built-in default; `ARCCODE_PROFILE` overrides per call.
+  A profile's `env` (e.g. `ARCCODE_CONFIG`) is applied without clobbering values
+  you already set, and the catalog reloads so its models are usable immediately.
+- **`--dry-run` planning mode**: preview a run's routing, agent, model (with
+  runtime-accurate provider fallback), tool set, and a cost estimate without
+  calling any model or writing to disk. Works with `--json` for CI budgeting.
+- **Richer `arccode doctor`**: adds catalog size, active profile, agents/skills
+  counts, `ARCCODE_CONFIG` validity, credential file permissions, `mcp.json`
+  validity, and saved-session count, plus a pass/warn/fail summary.
+
 ## 0.4.0
 
 Shell tab-completion.

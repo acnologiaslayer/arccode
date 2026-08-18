@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "arccode"
-version = "0.4.0"
+version = "0.5.0"
 description = "A multi-provider agent harness CLI that routes work to the right model by complexity, cost, performance, and intent, and can spawn agents, import skills, and build new agents/skills."
 readme = "README.md"
 requires-python = ">=3.10"

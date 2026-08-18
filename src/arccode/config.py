@@ -154,6 +154,18 @@ MODELS = load_models()
 MODELS_BY_ID = {m.id: m for m in MODELS.values()}
 
 
+def reload() -> dict[str, ModelSpec]:
+    """Rebuild the catalog in place after the environment changes.
+
+    Profiles can set ARCCODE_CONFIG / provider keys *after* this module was first
+    imported; calling this refreshes MODELS/MODELS_BY_ID so those take effect.
+    """
+    global MODELS, MODELS_BY_ID
+    MODELS = load_models()
+    MODELS_BY_ID = {m.id: m for m in MODELS.values()}
+    return MODELS
+
+
 def resolve(key_or_id: str) -> ModelSpec:
     """Accept either a catalog key or a full provider-qualified id.
 

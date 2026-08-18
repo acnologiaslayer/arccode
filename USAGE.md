@@ -154,6 +154,7 @@ arccode run "<task>" [options]
 |---|---|
 | `-a, --agent <name>` | Agent to use (default `coordinator`). |
 | `-m, --model <key/id>` | Force a model, bypassing the router. |
+| `-p, --profile <name>` | Apply a saved profile's defaults (overrides the active one). |
 | `-y, --yes` | Auto-approve "danger" tools (writes, bash). Use in CI/non-interactive. |
 | `-v, --verbose` | Show the routing decision and each tool call. |
 | `-s, --session <id>` | Persist/resume a session (`new` starts one). |
@@ -162,6 +163,7 @@ arccode run "<task>" [options]
 | `--max-steps <n>` | Cap the tool loop (default 40). |
 | `-q, --quiet` | Print only the final result (no summary/spinner). Good for pipes. |
 | `--json` | Emit a JSON object: `result`, `agent`, `files_changed`, `usage`, `session`. |
+| `--dry-run` | Plan only: show routing, agent, model, tools, and cost estimate. No LLM call, no writes. |
 
 Examples:
 
@@ -178,11 +180,23 @@ arccode run "Summarize the architecture" -a researcher
 # scripting: capture just the answer, or parse structured output
 answer=$(arccode run "Return the current version string" -q)
 arccode run "List the top 3 risks" --json | jq -r '.result'
+
+# preview the plan (routing, model, tools, cost) without spending anything
+arccode run "Refactor the auth module and add tests" -a implementer --dry-run
+arccode run "Design a rate limiter" -m workhorse --dry-run --json | jq .cost_estimate_usd
 ```
 
 Each run prints token counts and estimated USD at the end. On a terminal the
 reply also **streams in live** as it is generated (disabled by `-q`, `--json`,
 or when output is piped).
+
+### Dry run (plan without spending)
+
+`--dry-run` resolves everything a real run would (the routed or pinned model,
+the agent's tool set, and a cost estimate) but makes **no model call and writes
+nothing**. It mirrors runtime fallback, so if a pinned model's provider is not
+usable it shows the model you would actually get. Pair with `--json` for CI
+budgeting or pre-flight checks.
 
 ---
 
@@ -384,6 +398,43 @@ script instead of installing, run `arccode completion bash` (prints to stdout).
 
 ---
 
+## Profiles
+
+Profiles are named bundles of run defaults, so you can switch whole setups with
+one flag instead of repeating `--agent`, `--model`, `--cwd`, `-y`, and env vars.
+One profile can be **active** (applied automatically); explicit CLI flags always
+win over it.
+
+```bash
+# create profiles (only the flags you pass are stored)
+arccode profile set local -a researcher -m ollama/qwen2.5-3b --activate
+arccode profile set work  -a implementer --yes -e ARCCODE_CONFIG=~/work/arccode.yaml
+
+arccode profile list         # show all; the active one is marked ●
+arccode profile show work    # print one profile as JSON
+arccode profile use local    # make 'local' the active default
+arccode profile clear        # no active profile (built-in defaults)
+arccode profile delete work
+```
+
+Use them on a run or chat:
+
+```bash
+arccode run "triage this failure"           # uses the active profile
+arccode run "triage this failure" -p work   # force a specific profile
+arccode run "triage this failure" -a debugger  # CLI flag still overrides
+```
+
+Precedence (highest first): **explicit CLI flag → `-p <name>` → active profile →
+built-in default**. The env override `ARCCODE_PROFILE=<name>` selects the active
+profile for a single invocation. A profile's `env` values are exported only when
+not already set, and setting `ARCCODE_CONFIG` in a profile reloads the catalog so
+its models are available immediately.
+
+Stored at `$ARCCODE_HOME/profiles.json` (default `~/.arccode/profiles.json`).
+
+---
+
 ## Configuration reference
 
 | Path / var | Purpose |
@@ -393,6 +444,8 @@ script instead of installing, run `arccode completion bash` (prints to stdout).
 | `ARCCODE_AGENTS_DIR` | Extra agents directory. |
 | `ARCCODE_SKILLS_DIR` | Extra skills directory. |
 | `ARCCODE_HOME` | Base dir (default `~/.arccode`). |
+| `ARCCODE_PROFILE` | Select the active profile for one invocation. |
+| `~/.arccode/profiles.json` | Saved profiles + active pointer. |
 | `~/.arccode/credentials.json` | OAuth tokens (0600). |
 | `~/.arccode/oauth.json` | OAuth client config per provider. |
 | `~/.arccode/mcp.json` | MCP servers. |
